@@ -62,14 +62,61 @@ class BadgeLabel(QtWidgets.QLabel):
         painter.drawText(r, int(flags), self.text())
         painter.end()
 
-# ---------- Demo data ----------
+# ---------- BUCK Register Definitions ----------
 
+# Global Buck registers
+BUCK_GLOBAL_REGISTERS = [
+    ("BUCK_REFERENCE<1:0>", "0"),
+    ("BUCK_TARGET_H<7:0>", "221"),
+    ("BUCK_TARGET_L<7:0>", "144"),
+    ("BUCK_CAL_SETTLING_TIME<3:0>", "5"),
+]
+
+# BUCK_TOP instance registers (for both BUCK0 and BUCK1)
+BUCK_TOP_REGISTERS = [
+    ("BUCK_CLK_1G", "0"),
+    ("BUCK_RSTB", "0"),
+    ("BUCK_ASYNC_RSTB", "0"),
+    ("BUCK_CLK_SEL<2:0>", "0"),
+    ("BUCK_CALBUF_EN", "0"),
+    ("BUCK_CAL_REFBAND_H<1:0>", "3"),
+    ("BUCK_CAL_REFCODE_H<9:0>", "256"),
+    ("BUCK_CAL_REFBAND_L<1:0>", "2"),
+    ("BUCK_CAL_REFCODE_L<9:0>", "128"),
+    ("BUCK_CONFIG_H<12:0>", "2155"),
+    ("BUCK_CONFIG_L<12:0>", "2155"),
+    ("BUCK_PORB", "0"),
+    ("BUCK_CALEN", "0"),
+    ("BUCK_REFBAND_H<1:0>", "3"),
+    ("BUCK_REFCODE_H<9:0>", "256"),
+    ("BUCK_REFBAND_L<1:0>", "2"),
+    ("BUCK_REFCODE_L<9:0>", "128"),
+    ("BUCK_ATP_EN", "0"),
+    ("BUCK_TESTCODE_H<2>", "0"),
+    ("BUCK_TESTCODE_H<1>", "0"),
+    ("BUCK_TESTCODE_H<0>", "0"),
+    ("BUCK_TESTCODE_L<2:0>", "0"),
+    ("BUCK_EN_TP_TSCORE", "0"),
+    ("BUCK_PDB_TSCORE", "0"),
+    ("BUCK_RSTB_TSCORE", "0"),
+    ("BUCK_BG_RTRIM<3:0>", "0"),
+    ("BUCK_BIAS_CTRL<3:0>", "4"),
+    ("BUCK_BIAS_PD", "0"),
+    ("BUCK_ATP_MUX_CTRL<5:0>", "0"),
+    ("BUCK_HADC_CONFIG<16:0>", "124777"),
+    ("BUCK_HADC_EN", "0"),
+    ("BUCK_HADC_STROBE", "0"),
+    ("BUCK_HADC_VALID", "0"),
+    ("BUCK_HADC_OUT<7:0>", "0"),
+    ("CALCOMP_L", "0"),
+    ("CALCOMP_H", "0"),
+]
+
+# Combine all BUCK registers
+BUCK_ALL_REGISTERS = BUCK_GLOBAL_REGISTERS + BUCK_TOP_REGISTERS
+
+# Legacy sample ports for other tabs
 PORTS_SAMPLE = [
-    "BUCK_PORB",
-    "BUCK_RSTB",
-    "BUCK_ASYNC_RSTB",
-    "BUCK_CAL_REFBAND_H<1:0>",
-    "BUCK_CAL_REFCODE_H<9:0>",
     "VREF_EN",
     "ADC_IN0",
     "ADC_IN1",
@@ -93,7 +140,19 @@ class AnalogTab(QtWidgets.QWidget):
         header.setObjectName("sectionHeader")
         outer.addWidget(header)
 
-        self.table = QtWidgets.QTableWidget(len(self.ports), 5, self)
+        # Handle both old string format and new tuple format
+        if self.ports and isinstance(self.ports[0], tuple):
+            # New format: list of (port_name, default_value) tuples
+            ports_data = self.ports
+            port_names = [port[0] for port in ports_data]
+            default_values = [port[1] for port in ports_data]
+        else:
+            # Old format: list of port names
+            ports_data = [(port, "N/A") for port in self.ports]
+            port_names = self.ports
+            default_values = ["N/A"] * len(self.ports)
+
+        self.table = QtWidgets.QTableWidget(len(ports_data), 5, self)
         self.table.setObjectName("portsTable")
         self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Desired"])
         self.table.verticalHeader().setVisible(False)
@@ -105,9 +164,9 @@ class AnalogTab(QtWidgets.QWidget):
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
-        for row, port in enumerate(self.ports):
+        for row, (port_name, default_value) in enumerate(ports_data):
             # Port
-            name_item = QtWidgets.QTableWidgetItem(port)
+            name_item = QtWidgets.QTableWidgetItem(port_name)
             name_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft)
             self.table.setItem(row, 0, name_item)
 
@@ -123,7 +182,7 @@ class AnalogTab(QtWidgets.QWidget):
             self.table.setCellWidget(row, 2, write_editor)
 
             # Default value label
-            default_lbl = BadgeLabel("N/A")
+            default_lbl = BadgeLabel(default_value)
             self.table.setCellWidget(row, 3, default_lbl)
 
             # Desired
@@ -430,8 +489,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.setDocumentMode(True)
         self.tabs.setTabPosition(QtWidgets.QTabWidget.TabPosition.North)
 
-        self.tab_buck0 = AnalogTab("BUCK0")
-        self.tab_buck1 = AnalogTab("BUCK1")
+        self.tab_buck0 = AnalogTab("BUCK0", BUCK_ALL_REGISTERS)
+        self.tab_buck1 = AnalogTab("BUCK1", BUCK_ALL_REGISTERS)
         self.tab_cima = CimaTab("CIMA")
         self.tab_cima_mvm = CimaMvmTab()
         self.tab_board = AnalogTab("Board")
