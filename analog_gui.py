@@ -248,7 +248,7 @@ class CimaMvmTab(QtWidgets.QWidget):
         self.table.setObjectName("portsTable")
         self.table.setHorizontalHeaderLabels(["ACT VAL", "No rows (ACT)", "WT VAL (WT0)", "No rows (WT0)", "WT1 (ADC weights)"])
         self.table.verticalHeader().setVisible(False)
-        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.DoubleClicked)
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.AllEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
@@ -345,35 +345,25 @@ class CimaMvmTab(QtWidgets.QWidget):
         self.do_mvm_btn.setEnabled(valid)
 
     def on_do_mvm_clicked(self):
-        sum_b = 0
-        sum_d = 0
-        non_zero_b_count = 0
-        non_zero_d_count = 0
+        rows = self.table.rowCount()
+        sum_b = sum(int(self.table.item(r, 1).text() or "0") for r in range(rows))
+        sum_d = sum(int(self.table.item(r, 3).text() or "0") for r in range(rows))
 
-        for row in range(16):
-            try:
-                val_b = int(self.table.item(row, 1).text() or "0")
-                if val_b > 0: non_zero_b_count += 1
-                sum_b += val_b
-            except ValueError:
-                pass
-            try:
-                val_d = int(self.table.item(row, 3).text() or "0")
-                if val_d > 0: non_zero_d_count += 1
-                sum_d += val_d
-            except ValueError:
-                pass
-
-        # Determine active mode under the corrected rules
         def is_single_576(vec):
-            return vec.count(576) == 1 and all((v in (0, 576)) for v in vec)
+            return vec.count(576) == 1 and all((v == 0 or v == 576) for v in vec)
 
-        if (sum_d == self.TOTAL) and is_single_576([int(self.table.item(r, 1).text() or "0") for r in range(16)]):
+        colB = [int(self.table.item(r, 1).text() or "0") for r in range(rows)]
+        colD = [int(self.table.item(r, 3).text() or "0") for r in range(rows)]
+
+        if (sum_d == self.TOTAL) and is_single_576(colB):
             active_mode = "Differing weights (WT0 distributed, ACT fixed @ single 576 row)"
-        elif (sum_b == self.TOTAL) and is_single_576([int(self.table.item(r, 3).text() or "0") for r in range(16)]):
+        elif (sum_b == self.TOTAL) and is_single_576(colD):
             active_mode = "Differing activation (ACT distributed, WT0 fixed @ single 576 row)"
         else:
             active_mode = "Invalid/ambiguous"
+
+        non_zero_b_count = sum(1 for v in colB if v > 0)
+        non_zero_d_count = sum(1 for v in colD if v > 0)
         summary = f"""CIMA MVM Summary:
 
 Selected CIMA index: {self.target_cima.value()}
