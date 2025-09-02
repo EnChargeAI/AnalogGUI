@@ -255,7 +255,14 @@ class CimaMvmTab(QtWidgets.QWidget):
 
         for row in range(16):
             for col in range(5):
-                self.table.setItem(row, col, QtWidgets.QTableWidgetItem(""))
+                it = QtWidgets.QTableWidgetItem("")
+                if col == 1:  # Column B (No rows ACT)
+                    it.setData(QtCore.Qt.ItemDataRole.UserRole, "input")
+                    it.setBackground(QtGui.QColor("#2a1f1f"))
+                elif col == 3:  # Column D (No rows WT0)
+                    it.setData(QtCore.Qt.ItemDataRole.UserRole, "input")
+                    it.setBackground(QtGui.QColor("#2a1f1f"))
+                self.table.setItem(row, col, it)
 
         header_view = self.table.horizontalHeader()
         header_view.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
@@ -272,8 +279,9 @@ class CimaMvmTab(QtWidgets.QWidget):
         footer.addWidget(self.sum_b_label)
         footer.addWidget(self.sum_d_label)
         footer.addStretch(1)
-        self.status_label = QtWidgets.QLabel("Needs total 576 in exactly one of B or D (the other must be 0).")
+        self.status_label = QtWidgets.QLabel("Needs one dimension distributed to 576 and the other a single 576 row.")
         self.status_label.setStyleSheet("color: #ff6b6b; font-weight: 600;")
+        self.status_label.setToolTip("Exactly one of B or D must be a single 576 in one row (others 0). The other column must distribute to 576 across rows. If D[r] > 0, enter WT1[r].")
         footer.addWidget(self.status_label)
         outer.addLayout(footer)
 
@@ -290,39 +298,48 @@ class CimaMvmTab(QtWidgets.QWidget):
         self.table.itemChanged.connect(self._recompute_validation)
 
     def _recompute_validation(self):
-        sum_b = 0
-        sum_d = 0
-        for row in range(16):
+        # Parse integer columns safely
+        def col_int(r, c):
             try:
-                sum_b += int(self.table.item(row, 1).text() or "0")
-            except ValueError:
-                pass
-            try:
-                sum_d += int(self.table.item(row, 3).text() or "0")
-            except ValueError:
-                pass
+                return int(self.table.item(r, c).text() or "0")
+            except Exception:
+                return 0
 
+        rows = self.table.rowCount()
+        colB = [col_int(r, 1) for r in range(rows)]  # No rows (ACT)
+        colD = [col_int(r, 3) for r in range(rows)]  # No rows (WT0)
+
+        sum_b = sum(colB)
+        sum_d = sum(colD)
         self.sum_b_label.setText(f"Sum B = {sum_b}")
         self.sum_d_label.setText(f"Sum D = {sum_d}")
 
-        valid = False
-        if (sum_b == self.TOTAL and sum_d == 0) or (sum_d == self.TOTAL and sum_b == 0):
-            wt1_rule_valid = True
-            for row in range(16):
-                try:
-                    val_d = int(self.table.item(row, 3).text() or "0")
-                    if val_d > 0 and not self.table.item(row, 4).text().strip():
-                        wt1_rule_valid = False
-                        break
-                except ValueError:
-                    pass
-            valid = wt1_rule_valid
+        # Helper: exactly one entry equals 576 and all others are 0
+        def is_single_576(vec):
+            return vec.count(576) == 1 and all((v in (0, 576)) for v in vec)
+
+        # WT1 requirement: if D[r] > 0 then WT1[r] must be non-empty
+        wt1_ok = True
+        for r in range(rows):
+            if colD[r] > 0:
+                txt = (self.table.item(r, 4).text() or "").strip()
+                if not txt:
+                    wt1_ok = False
+                    break
+
+        # Two legal modes per spec:
+        #  - Differing weights:  D distributes to 576, B is a single 576 row
+        #  - Differing activation: B distributes to 576, D is a single 576 row
+        differing_weights_ok   = (sum_d == self.TOTAL) and is_single_576(colB)
+        differing_activation_ok = (sum_b == self.TOTAL) and is_single_576(colD)
+
+        valid = wt1_ok and (differing_weights_ok or differing_activation_ok)
 
         if valid:
             self.status_label.setText("OK")
             self.status_label.setStyleSheet("color: #4ade80; font-weight: 600;")
         else:
-            self.status_label.setText("Needs total 576 in exactly one of B or D (the other must be 0).")
+            self.status_label.setText("Needs one dimension distributed to 576 and the other a single 576 row.")
             self.status_label.setStyleSheet("color: #ff6b6b; font-weight: 600;")
 
         self.do_mvm_btn.setEnabled(valid)
@@ -347,7 +364,16 @@ class CimaMvmTab(QtWidgets.QWidget):
             except ValueError:
                 pass
 
-        active_mode = "B (ACT)" if sum_b == self.TOTAL else "D (WT0)"
+        # Determine active mode under the corrected rules
+        def is_single_576(vec):
+            return vec.count(576) == 1 and all((v in (0, 576)) for v in vec)
+
+        if (sum_d == self.TOTAL) and is_single_576([int(self.table.item(r, 1).text() or "0") for r in range(16)]):
+            active_mode = "Differing weights (WT0 distributed, ACT fixed @ single 576 row)"
+        elif (sum_b == self.TOTAL) and is_single_576([int(self.table.item(r, 3).text() or "0") for r in range(16)]):
+            active_mode = "Differing activation (ACT distributed, WT0 fixed @ single 576 row)"
+        else:
+            active_mode = "Invalid/ambiguous"
         summary = f"""CIMA MVM Summary:
 
 Selected CIMA index: {self.target_cima.value()}
@@ -462,6 +488,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 padding: 6px 10px;
             }
             QLineEdit:focus { border-color: #63b3ed; }
+            /* Input cell styling */
+            QTableWidget::item.inputCell { background: #2a1f1f; }
             /* BadgeLabel uses custom paint; no extra CSS needed */
         ''')
 
