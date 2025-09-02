@@ -97,6 +97,9 @@ class AnalogTab(QtWidgets.QWidget):
         self.table.setObjectName("portsTable")
         self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Desired"])
         self.table.verticalHeader().setVisible(False)
+        vh = self.table.verticalHeader()
+        vh.setDefaultSectionSize(30)          # <-- taller rows
+        vh.setMinimumSectionSize(28)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
@@ -114,7 +117,9 @@ class AnalogTab(QtWidgets.QWidget):
             self.table.setItem(row, 1, current_item)
 
             # Write Value (editable)
-            write_editor = ClearLineEdit(placeholder="enter value")
+            write_editor = ClearLineEdit(placeholder="enter value", align_center=True)
+            write_editor.setMinimumHeight(26)               # <-- add height
+            write_editor.setTextMargins(6, 0, 6, 0)         # <-- inner padding
             self.table.setCellWidget(row, 2, write_editor)
 
             # Default value label
@@ -248,6 +253,37 @@ class CimaMvmTab(QtWidgets.QWidget):
         self.table.setObjectName("portsTable")
         self.table.setHorizontalHeaderLabels(["ACT VAL", "No rows (ACT)", "WT VAL (WT0)", "No rows (WT0)", "WT1 (ADC weights)"])
         self.table.verticalHeader().setVisible(False)
+        vh = self.table.verticalHeader()
+        vh.setDefaultSectionSize(30)          # <-- taller rows while editing
+        vh.setMinimumSectionSize(28)
+        
+        # Custom delegate for comfortable editor sizing
+        class _ComfyDelegate(QtWidgets.QStyledItemDelegate):
+            def createEditor(self, parent, option, index):
+                ed = QtWidgets.QLineEdit(parent)
+                ed.setMinimumHeight(26)                  # <-- height so text isn't cramped
+                ed.setTextMargins(6, 0, 6, 0)            # <-- inner padding
+                # keep your dark look consistent
+                ed.setStyleSheet("""
+                    QLineEdit {
+                        color: #ffffff;
+                        background: #1a1e26;
+                        border: 1px solid #3a3f4b;
+                        border-radius: 8px;
+                        padding: 4px 8px;
+                    }
+                    QLineEdit:focus { border-color: #63b3ed; }
+                """)
+                return ed
+
+        # install for all columns
+        self.table.setItemDelegate(_ComfyDelegate(self.table))
+        
+        # Make vertical headers visible to emphasize row index
+        self.table.verticalHeader().setVisible(True)
+        self.table.verticalHeader().setDefaultAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.table.setVerticalHeaderLabels([str(i) for i in range(self.table.rowCount())])
+        
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.AllEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
@@ -448,6 +484,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 border-radius: 12px;
                 gridline-color: #2b3040;
                 background: #181b21;
+                font-size: 13px;              /* <-- add this */
             }
             QHeaderView::section {
                 background: #222734; color: #e6e8eb; padding: 8px;
