@@ -157,12 +157,19 @@ class AnalogTab(QtWidgets.QWidget):
         self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Desired", "Read", "Write"])
         self.table.verticalHeader().setVisible(False)
         vh = self.table.verticalHeader()
-        vh.setDefaultSectionSize(30)          # <-- taller rows
-        vh.setMinimumSectionSize(28)
+        vh.setDefaultSectionSize(42)          # taller rows to enlarge surrounding boxes
+        vh.setMinimumSectionSize(38)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+
+        # subtle drop shadow to give table depth
+        shadow = QtWidgets.QGraphicsDropShadowEffect(self.table)
+        shadow.setBlurRadius(18)
+        shadow.setOffset(0, 2)
+        shadow.setColor(QtGui.QColor(0, 0, 0, 180))
+        self.table.setGraphicsEffect(shadow)
 
         for row, (port_name, default_value) in enumerate(ports_data):
             # Port
@@ -181,9 +188,18 @@ class AnalogTab(QtWidgets.QWidget):
             write_editor.setTextMargins(6, 0, 6, 0)         # <-- inner padding
             self.table.setCellWidget(row, 2, write_editor)
 
-            # Default value label
+            # Default value label (centered with inner padding)
             default_lbl = BadgeLabel(default_value)
-            self.table.setCellWidget(row, 3, default_lbl)
+            default_lbl.setFixedHeight(24)
+            default_container = QtWidgets.QWidget()
+            default_layout = QtWidgets.QHBoxLayout(default_container)
+            default_layout.setContentsMargins(0, 0, 0, 0)
+            default_layout.setSpacing(0)
+            default_layout.addStretch(1)
+            default_layout.addWidget(default_lbl)
+            default_layout.addStretch(1)
+            default_container.setObjectName("cellBox")
+            self.table.setCellWidget(row, 3, default_container)
 
             # Desired
             desired_item = QtWidgets.QTableWidgetItem("N/A")
@@ -196,9 +212,20 @@ class AnalogTab(QtWidgets.QWidget):
             read_btn.setProperty("size", "small")
             read_btn.setFixedWidth(75)
             read_btn.setFixedHeight(26)
+            # keep elevation so text renders crisply inside cell
+            read_btn.setFlat(False)
             read_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             read_btn.clicked.connect(lambda checked, r=row: self.on_read_single(r))
-            self.table.setCellWidget(row, 5, read_btn)
+            container_read = QtWidgets.QWidget()
+            layout_read = QtWidgets.QHBoxLayout(container_read)
+            layout_read.setContentsMargins(6, 0, 6, 0)
+            layout_read.setSpacing(0)
+            layout_read.addStretch(1)
+            layout_read.addWidget(read_btn)
+            layout_read.addStretch(1)
+            # Keep read cell plain to avoid halo around button
+            # container_read.setObjectName("cellBox")
+            self.table.setCellWidget(row, 5, container_read)
 
             # Individual Write button
             write_btn = QtWidgets.QPushButton("Write")
@@ -206,18 +233,31 @@ class AnalogTab(QtWidgets.QWidget):
             write_btn.setProperty("size", "small")
             write_btn.setFixedWidth(75)
             write_btn.setFixedHeight(26)
+            write_btn.setFlat(False)
             write_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             write_btn.clicked.connect(lambda checked, r=row: self.on_write_single(r))
-            self.table.setCellWidget(row, 6, write_btn)
+            container_write = QtWidgets.QWidget()
+            layout_write = QtWidgets.QHBoxLayout(container_write)
+            layout_write.setContentsMargins(6, 0, 6, 0)
+            layout_write.setSpacing(0)
+            layout_write.addStretch(1)
+            layout_write.addWidget(write_btn)
+            layout_write.addStretch(1)
+            # Keep write cell plain to avoid halo around button
+            # container_write.setObjectName("cellBox")
+            self.table.setCellWidget(row, 6, container_write)
 
         header_view = self.table.horizontalHeader()
         header_view.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
         header_view.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header_view.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.Fixed)
         header_view.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header_view.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        header_view.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        header_view.resizeSection(3, 79)  # Default column box wider
+        header_view.resizeSection(5, 124)  # Read column box wider
+        header_view.resizeSection(6, 124)  # Write column box wider
 
         outer.addWidget(self.table, stretch=1)
 
@@ -577,16 +617,27 @@ class MainWindow(QtWidgets.QMainWindow):
             QTableWidget {
                 border: 1px solid #3a3f4b;
                 border-radius: 12px;
-                gridline-color: #2b3040;
+                gridline-color: transparent; /* hide grid lines for cleaner look */
                 background: #181b21;
                 font-size: 13px;              /* <-- add this */
             }
+            QTableWidget::item:selected {
+                background: #2b3445;
+                color: #ffffff;
+            }
             QHeaderView::section {
-                background: #222734; color: #e6e8eb; padding: 8px;
+                background: #222734; color: #e6e8eb; padding: 10px 8px;
                 border: none; border-right: 1px solid #2b3040;
                 font-weight: 600;
+                text-align: center; /* center header labels */
             }
             QTableWidget::item { padding: 8px; }
+            /* Cell box background to visually enlarge the surrounding boxes */
+            QWidget#cellBox {
+                background: #202632;
+                border: 1px solid #2b3040;
+                border-radius: 12px;
+            }
             QPushButton {
                 padding: 8px 14px; border-radius: 10px; border: 1px solid #3a3f4b;
                 font-weight: 600;
@@ -597,8 +648,8 @@ class MainWindow(QtWidgets.QMainWindow):
             QPushButton[kind="accent"] { background: #63b3ed; color: #0e1116; border-color: #63b3ed; }
             /* Small buttons for individual row actions */
             QPushButton[size="small"] {
-                padding: 4px 8px; border-radius: 6px; font-size: 12px;
-                font-weight: 600; min-height: 22px; color: #ffffff;
+                padding: 4px 12px; border-radius: 8px; font-size: 12px;
+                font-weight: 600; min-height: 26px; max-height: 32px; color: #ffffff;
             }
             QPushButton[size="small"]:hover {
                 transform: translateY(-1px);
@@ -620,6 +671,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a5568, stop:1 #3a3f4b);
                 color: #ffffff;
             }
+            /* Sleek scrollbars */
+            QScrollBar:vertical {
+                background: #1b1f27; width: 12px; margin: 4px 2px 4px 0;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #3a3f4b; min-height: 24px; border-radius: 6px;
+            }
+            QScrollBar::handle:vertical:hover { background: #4a5568; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+            QScrollBar:horizontal { height: 10px; background: #1b1f27; margin: 0 4px; }
+            QScrollBar::handle:horizontal { background: #3a3f4b; border-radius: 6px; }
             QTabBar::tab {
                 background: #242a36; padding: 10px 16px; border-top-left-radius: 10px; border-top-right-radius: 10px;
                 margin-right: 4px; color: #cfd5de; font-weight: 600;
