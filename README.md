@@ -13,7 +13,7 @@ How to run
    ```
    Or alternatively using brew:
    ```bash
-   brew install pyqt
+   brew install pyqt6
    ```
 3. From this directory run:
 
