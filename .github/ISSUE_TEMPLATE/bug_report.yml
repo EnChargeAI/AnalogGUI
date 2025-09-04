@@ -1,0 +1,73 @@
+name: Bug Report
+description: Report a bug to help us improve AnalogGUI
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of what the bug is
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Tell us what you expected!
+    validations:
+      required: true
+      
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+  
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What version of Python are you running?
+      placeholder: e.g., 3.9.2
+    validations:
+      required: true
+      
+  - type: input
+    id: pyqt-version
+    attributes:
+      label: PyQt6 Version
+      description: What version of PyQt6 are you using?
+      placeholder: e.g., 6.4.0
+    validations:
+      required: true
+      
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+      placeholder: e.g., macOS 12.1, Windows 11, Ubuntu 20.04
+    validations:
+      required: true
+  
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here, including screenshots if applicable

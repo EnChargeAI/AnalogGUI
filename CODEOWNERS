@@ -1,0 +1,10 @@
+# Code Owners
+
+# Global owners - these users/teams will be requested for review on all PRs
+* @EnChargeAI
+
+# Main application code
+analog_gui.py @EnChargeAI
+
+# Documentation
+*.md @EnChargeAI
