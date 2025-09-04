@@ -152,9 +152,9 @@ class AnalogTab(QtWidgets.QWidget):
             port_names = self.ports
             default_values = ["N/A"] * len(self.ports)
 
-        self.table = QtWidgets.QTableWidget(len(ports_data), 7, self)
+        self.table = QtWidgets.QTableWidget(len(ports_data), 6, self)
         self.table.setObjectName("portsTable")
-        self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Desired", "Read", "Write"])
+        self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Read", "Write"])
         self.table.verticalHeader().setVisible(False)
         vh = self.table.verticalHeader()
         vh.setDefaultSectionSize(42)          # taller rows to enlarge surrounding boxes
@@ -201,11 +201,6 @@ class AnalogTab(QtWidgets.QWidget):
             default_container.setObjectName("cellBox")
             self.table.setCellWidget(row, 3, default_container)
 
-            # Desired
-            desired_item = QtWidgets.QTableWidgetItem("N/A")
-            desired_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(row, 4, desired_item)
-
             # Individual Read button
             read_btn = QtWidgets.QPushButton("Read")
             read_btn.setProperty("kind", "secondary")
@@ -225,7 +220,7 @@ class AnalogTab(QtWidgets.QWidget):
             layout_read.addStretch(1)
             # Keep read cell plain to avoid halo around button
             # container_read.setObjectName("cellBox")
-            self.table.setCellWidget(row, 5, container_read)
+            self.table.setCellWidget(row, 4, container_read)
 
             # Individual Write button
             write_btn = QtWidgets.QPushButton("Write")
@@ -245,19 +240,18 @@ class AnalogTab(QtWidgets.QWidget):
             layout_write.addStretch(1)
             # Keep write cell plain to avoid halo around button
             # container_write.setObjectName("cellBox")
-            self.table.setCellWidget(row, 6, container_write)
+            self.table.setCellWidget(row, 5, container_write)
 
         header_view = self.table.horizontalHeader()
         header_view.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
         header_view.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        header_view.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header_view.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
         header_view.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        header_view.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.Fixed)
         header_view.resizeSection(3, 79)  # Default column box wider
-        header_view.resizeSection(5, 124)  # Read column box wider
-        header_view.resizeSection(6, 124)  # Write column box wider
+        header_view.resizeSection(4, 124)  # Read column box wider
+        header_view.resizeSection(5, 124)  # Write column box wider
 
         outer.addWidget(self.table, stretch=1)
 
@@ -291,7 +285,7 @@ class AnalogTab(QtWidgets.QWidget):
         for r in range(self.table.rowCount()):
             editor = self.table.cellWidget(r, 2)  # ClearLineEdit
             value = editor.text() if isinstance(editor, QtWidgets.QLineEdit) else ""
-            self.table.item(r, 4).setText(value if value else "N/A")
+            # No longer updating desired column since it's removed
         QtWidgets.QMessageBox.information(self, "Write All", f"[{self.title}] Wrote all (frontend only).")
 
     def on_check_hadc_clicked(self):
@@ -308,7 +302,7 @@ class AnalogTab(QtWidgets.QWidget):
         port_name = self.table.item(row, 0).text()
         editor = self.table.cellWidget(row, 2)  # ClearLineEdit
         value = editor.text() if isinstance(editor, QtWidgets.QLineEdit) else ""
-        self.table.item(row, 4).setText(value if value else "N/A")  # Update desired value
+        # No longer updating desired column since it's removed
         QtWidgets.QMessageBox.information(self, "Write Single", f"[{self.title}] Wrote {port_name} = {value} (frontend only).")
 
 
