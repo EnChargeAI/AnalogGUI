@@ -65,12 +65,12 @@ class BadgeLabel(QtWidgets.QLabel):
 # ---------- BUCK Register Definitions ----------
 
 # Global Buck registers
-BUCK_GLOBAL_REGISTERS = [
-    ("BUCK_REFERENCE<1:0>", "0"),
-    ("BUCK_TARGET_H<7:0>", "221"),
-    ("BUCK_TARGET_L<7:0>", "144"),
-    ("BUCK_CAL_SETTLING_TIME<3:0>", "5"),
-]
+# BUCK_GLOBAL_REGISTERS = [
+#     ("BUCK_REFERENCE<1:0>", "0"),
+#     ("BUCK_TARGET_H<7:0>", "221"),
+#     ("BUCK_TARGET_L<7:0>", "144"),
+#     ("BUCK_CAL_SETTLING_TIME<3:0>", "5"),
+# ]
 
 # BUCK_TOP instance registers (for both BUCK0 and BUCK1)
 BUCK_TOP_REGISTERS = [
@@ -113,7 +113,7 @@ BUCK_TOP_REGISTERS = [
 ]
 
 # Combine all BUCK registers
-BUCK_ALL_REGISTERS = BUCK_GLOBAL_REGISTERS + BUCK_TOP_REGISTERS
+BUCK_ALL_REGISTERS = BUCK_TOP_REGISTERS  # BUCK_GLOBAL_REGISTERS + BUCK_TOP_REGISTERS
 
 # Legacy sample ports for other tabs
 PORTS_SAMPLE = [
@@ -152,9 +152,9 @@ class AnalogTab(QtWidgets.QWidget):
             port_names = self.ports
             default_values = ["N/A"] * len(self.ports)
 
-        self.table = QtWidgets.QTableWidget(len(ports_data), 5, self)
+        self.table = QtWidgets.QTableWidget(len(ports_data), 7, self)
         self.table.setObjectName("portsTable")
-        self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Desired"])
+        self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Desired", "Read", "Write"])
         self.table.verticalHeader().setVisible(False)
         vh = self.table.verticalHeader()
         vh.setDefaultSectionSize(30)          # <-- taller rows
@@ -190,12 +190,34 @@ class AnalogTab(QtWidgets.QWidget):
             desired_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row, 4, desired_item)
 
+            # Individual Read button
+            read_btn = QtWidgets.QPushButton("Read")
+            read_btn.setProperty("kind", "secondary")
+            read_btn.setProperty("size", "small")
+            read_btn.setFixedWidth(75)
+            read_btn.setFixedHeight(26)
+            read_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+            read_btn.clicked.connect(lambda checked, r=row: self.on_read_single(r))
+            self.table.setCellWidget(row, 5, read_btn)
+
+            # Individual Write button
+            write_btn = QtWidgets.QPushButton("Write")
+            write_btn.setProperty("kind", "primary")
+            write_btn.setProperty("size", "small")
+            write_btn.setFixedWidth(75)
+            write_btn.setFixedHeight(26)
+            write_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+            write_btn.clicked.connect(lambda checked, r=row: self.on_write_single(r))
+            self.table.setCellWidget(row, 6, write_btn)
+
         header_view = self.table.horizontalHeader()
         header_view.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
         header_view.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header_view.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header_view.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
 
         outer.addWidget(self.table, stretch=1)
 
@@ -234,6 +256,20 @@ class AnalogTab(QtWidgets.QWidget):
 
     def on_check_hadc_clicked(self):
         QtWidgets.QMessageBox.information(self, "Check HADC", f"[{self.title}] Checking HADC... (placeholder)")
+
+    def on_read_single(self, row: int):
+        """Handle individual read button click for a specific row."""
+        port_name = self.table.item(row, 0).text()
+        self.table.item(row, 1).setText("N/A")  # Update current value
+        QtWidgets.QMessageBox.information(self, "Read Single", f"[{self.title}] Read {port_name} (frontend only).")
+
+    def on_write_single(self, row: int):
+        """Handle individual write button click for a specific row."""
+        port_name = self.table.item(row, 0).text()
+        editor = self.table.cellWidget(row, 2)  # ClearLineEdit
+        value = editor.text() if isinstance(editor, QtWidgets.QLineEdit) else ""
+        self.table.item(row, 4).setText(value if value else "N/A")  # Update desired value
+        QtWidgets.QMessageBox.information(self, "Write Single", f"[{self.title}] Wrote {port_name} = {value} (frontend only).")
 
 
 class CimaTab(AnalogTab):
@@ -559,6 +595,31 @@ class MainWindow(QtWidgets.QMainWindow):
             QPushButton[kind="primary"] { background: #2a3342; }
             QPushButton[kind="secondary"] { background: #242b37; }
             QPushButton[kind="accent"] { background: #63b3ed; color: #0e1116; border-color: #63b3ed; }
+            /* Small buttons for individual row actions */
+            QPushButton[size="small"] {
+                padding: 4px 8px; border-radius: 6px; font-size: 12px;
+                font-weight: 600; min-height: 22px; color: #ffffff;
+            }
+            QPushButton[size="small"]:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 4px rgba(99, 179, 237, 0.3);
+            }
+            QPushButton[size="small"][kind="primary"] {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a90e2, stop:1 #357abd);
+                border: 1px solid #357abd; color: #ffffff;
+            }
+            QPushButton[size="small"][kind="primary"]:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5ba0f2, stop:1 #4a90e2);
+                color: #ffffff;
+            }
+            QPushButton[size="small"][kind="secondary"] {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3a3f4b, stop:1 #2a2f3a);
+                border: 1px solid #4a5568; color: #e6e8eb;
+            }
+            QPushButton[size="small"][kind="secondary"]:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a5568, stop:1 #3a3f4b);
+                color: #ffffff;
+            }
             QTabBar::tab {
                 background: #242a36; padding: 10px 16px; border-top-left-radius: 10px; border-top-right-radius: 10px;
                 margin-right: 4px; color: #cfd5de; font-weight: 600;
