@@ -7,7 +7,15 @@ How to run
 ----------
 
 1. Ensure Python 3.9+ is installed.
-2. From this directory run:
+2. Install PyQt6 (required dependency):
+   ```bash
+   pip3 install PyQt6
+   ```
+   Or alternatively using brew:
+   ```bash
+   brew install pyqt
+   ```
+3. From this directory run:
 
 ```
 python3 app.py
