@@ -1,5 +1,5 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 # ---------- Custom widgets that force visible text ----------
 
@@ -1403,6 +1403,439 @@ class BoardTab(QtWidgets.QWidget):
         if app:
             app.quit()
 
+# ---------- Functions Tab (frontend with integration hooks) ----------
+
+class FunctionsTab(QtWidgets.QWidget):
+    """Frontend-only UI for function tests with simple integration hooks.
+
+    Integration options:
+      - Connect to the signal ``runRequested(str test_id, dict params)``.
+      - Or pass an ``executor`` callable to the constructor or ``register_backend``.
+
+    The executor signature should be: ``executor(test_id: str, params: dict) -> None``.
+    """
+
+    runRequested = QtCore.pyqtSignal(str, dict)
+
+    def __init__(self, executor: Optional[Callable[[str, dict], None]] = None, parent=None):
+        super().__init__(parent)
+        self.executor: Optional[Callable[[str, dict], None]] = executor
+        self._build_ui()
+
+    # Public hook for later backend wiring
+    def register_backend(self, executor: Callable[[str, dict], None]):
+        self.executor = executor
+
+    # ---------- UI ----------
+    def _build_ui(self):
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(16, 16, 16, 16)
+        outer.setSpacing(12)
+
+        header = QtWidgets.QLabel("Functions")
+        header.setObjectName("sectionHeader")
+        outer.addWidget(header)
+
+        # Small hint explaining how to integrate
+        hint = QtWidgets.QLabel(
+            "Connect to runRequested(test_id, params) or call register_backend(executor). Frontend only for now."
+        )
+        hint.setStyleSheet("color: #b9c0cc;")
+        hint.setWordWrap(True)
+        outer.addWidget(hint)
+
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+
+        content = QtWidgets.QWidget()
+        content_layout = QtWidgets.QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
+
+        self.toolbox = QtWidgets.QToolBox()
+
+        # Helper to add pages
+        def add_section(title: str):
+            page = QtWidgets.QWidget()
+            v = QtWidgets.QVBoxLayout(page)
+            v.setContentsMargins(6, 6, 6, 6)
+            v.setSpacing(8)
+            self.toolbox.addItem(page, title)
+            return v
+
+        layout_cima   = add_section("CIMA")
+        layout_mem    = add_section("Memory / CWRAP")
+        layout_buck   = add_section("BUCK")
+
+        # Build rows
+        self._build_cima_rows(layout_cima)
+        layout_cima.addStretch(1)
+
+        self._build_memory_rows(layout_mem)
+        layout_mem.addStretch(1)
+
+        self._build_buck_rows(layout_buck)
+        layout_buck.addStretch(1)
+
+        content_layout.addWidget(self.toolbox)
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
+
+    def _row_shell(self, title_text: str) -> QtWidgets.QHBoxLayout:
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(8)
+        title = QtWidgets.QLabel(title_text)
+        title.setWordWrap(True)
+        title.setMinimumWidth(240)
+        title.setStyleSheet("font-weight: 600; color: #e6e8eb;")
+        row.addWidget(title)
+        return row
+
+    # ---------- Field creators ----------
+    def _spin(self, minimum: int, maximum: int, tooltip: str = "") -> QtWidgets.QSpinBox:
+        sb = QtWidgets.QSpinBox()
+        sb.setRange(minimum, maximum)
+        if tooltip:
+            sb.setToolTip(tooltip)
+        return sb
+
+    def _dspin(self, minimum: float, maximum: float, step: float = 0.01, suffix: str = "", tooltip: str = "") -> QtWidgets.QDoubleSpinBox:
+        ds = QtWidgets.QDoubleSpinBox()
+        ds.setRange(minimum, maximum)
+        ds.setSingleStep(step)
+        if suffix:
+            ds.setSuffix(f" {suffix}")
+        if tooltip:
+            ds.setToolTip(tooltip)
+        return ds
+
+    def _text(self, placeholder: str = "", tooltip: str = "") -> QtWidgets.QLineEdit:
+        ed = ClearLineEdit(placeholder=placeholder, align_center=False)
+        if tooltip:
+            ed.setToolTip(tooltip)
+        ed.setMinimumWidth(140)
+        return ed
+
+    def _combo(self, items: List[str], tooltip: str = "") -> QtWidgets.QComboBox:
+        cb = QtWidgets.QComboBox()
+        cb.addItems(items)
+        if tooltip:
+            cb.setToolTip(tooltip)
+        return cb
+
+    # ---------- Build specific sections ----------
+    def _build_cima_rows(self, container: QtWidgets.QVBoxLayout):
+        # 1. CIMA Power on
+        row = self._row_shell("CIMA Power on")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        cima_idx = self._spin(0, 63, "0–63")
+        row.addWidget(cima_idx)
+        row.addWidget(QtWidgets.QLabel("Analog ATP:"))
+        atp = self._combo(["Off", "On"]) 
+        row.addWidget(atp)
+        row.addWidget(QtWidgets.QLabel("Test point:"))
+        tp = self._text("e.g. TP1")
+        row.addWidget(tp)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Run")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(lambda: self._emit("cima_power_on", {"cima": int(cima_idx.value()), "analog_atp": atp.currentText(), "test_point": tp.text()}))
+        row.addWidget(btn)
+        container.addLayout(row)
+
+        # 2. Sweep register value
+        row = self._row_shell("Sweep register value")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        s_cima = self._spin(0, 63)
+        row.addWidget(s_cima)
+        row.addWidget(QtWidgets.QLabel("register:"))
+        s_reg = self._text("REG_NAME")
+        row.addWidget(s_reg)
+        row.addWidget(QtWidgets.QLabel("values:"))
+        s_vals = self._text("e.g. 0,1,2,3")
+        row.addWidget(s_vals)
+        row.addWidget(QtWidgets.QLabel("trigger:"))
+        s_trig = self._combo(["manual", "signal"]) 
+        row.addWidget(s_trig)
+        row.addStretch(1)
+        s_btn = QtWidgets.QPushButton("Run")
+        s_btn.setProperty("kind", "primary")
+        s_btn.clicked.connect(lambda: self._emit("sweep_register", {"cima": int(s_cima.value()), "register": s_reg.text(), "values": s_vals.text(), "trigger": s_trig.currentText()}))
+        row.addWidget(s_btn)
+        container.addLayout(row)
+
+        # 3. CIMA HADC measurement
+        row = self._row_shell("CIMA HADC measurement")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        h_cima = self._spin(0, 63)
+        row.addWidget(h_cima)
+        row.addWidget(QtWidgets.QLabel("Analog ATP:"))
+        h_atp = self._combo(["Off", "On"]) 
+        row.addWidget(h_atp)
+        row.addWidget(QtWidgets.QLabel("Test point:"))
+        h_tp = self._text("e.g. TP1")
+        row.addWidget(h_tp)
+        row.addStretch(1)
+        h_btn = QtWidgets.QPushButton("Run")
+        h_btn.setProperty("kind", "primary")
+        h_btn.clicked.connect(lambda: self._emit("cima_hadc_measure", {"cima": int(h_cima.value()), "analog_atp": h_atp.currentText(), "test_point": h_tp.text()}))
+        row.addWidget(h_btn)
+        container.addLayout(row)
+
+        # 4. CIMA HADC self test
+        row = self._row_shell("CIMA HADC self test")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        hs_cima = self._spin(0, 63)
+        row.addWidget(hs_cima)
+        row.addWidget(QtWidgets.QLabel("Analog ATP:"))
+        hs_atp = self._combo(["Off", "On"]) 
+        row.addWidget(hs_atp)
+        row.addWidget(QtWidgets.QLabel("Test point:"))
+        hs_tp = self._text("e.g. TP1")
+        row.addWidget(hs_tp)
+        row.addStretch(1)
+        hs_btn = QtWidgets.QPushButton("Run")
+        hs_btn.setProperty("kind", "primary")
+        hs_btn.clicked.connect(lambda: self._emit("cima_hadc_self_test", {"cima": int(hs_cima.value()), "analog_atp": hs_atp.currentText(), "test_point": hs_tp.text()}))
+        row.addWidget(hs_btn)
+        container.addLayout(row)
+
+        # 5. CIMA Calibration
+        row = self._row_shell("CIMA Calibration")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        cal_cima = self._spin(0, 63)
+        row.addWidget(cal_cima)
+        row.addStretch(1)
+        cal_btn = QtWidgets.QPushButton("Run")
+        cal_btn.setProperty("kind", "primary")
+        cal_btn.clicked.connect(lambda: self._emit("cima_calibration", {"cima": int(cal_cima.value())}))
+        row.addWidget(cal_btn)
+        container.addLayout(row)
+
+        # 6. CIMA Transfer function
+        row = self._row_shell("CIMA Transfer function")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        tf_cima = self._spin(0, 63)
+        row.addWidget(tf_cima)
+        row.addWidget(QtWidgets.QLabel("Vref:"))
+        tf_vref = self._dspin(0.0, 5.0, 0.01, "V")
+        row.addWidget(tf_vref)
+        row.addStretch(1)
+        tf_btn = QtWidgets.QPushButton("Run")
+        tf_btn.setProperty("kind", "primary")
+        tf_btn.clicked.connect(lambda: self._emit("cima_transfer_function", {"cima": int(tf_cima.value()), "vref": float(tf_vref.value())}))
+        row.addWidget(tf_btn)
+        container.addLayout(row)
+
+        # 9. MVM operation (note: requires compiler binary)
+        row = self._row_shell("MVM operation")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        mvm_cima = self._spin(0, 63)
+        row.addWidget(mvm_cima)
+        row.addWidget(QtWidgets.QLabel("ACT value:"))
+        mvm_act = self._spin(0, 65535)
+        row.addWidget(mvm_act)
+        row.addStretch(1)
+        mvm_note = QtWidgets.QLabel("requires compiler binary")
+        mvm_note.setStyleSheet("color: #b9c0cc;")
+        row.addWidget(mvm_note)
+        mvm_btn = QtWidgets.QPushButton("Run")
+        mvm_btn.setProperty("kind", "primary")
+        mvm_btn.clicked.connect(lambda: self._emit("mvm_operation", {"cima": int(mvm_cima.value()), "act_value": int(mvm_act.value())}))
+        row.addWidget(mvm_btn)
+        container.addLayout(row)
+
+    def _build_memory_rows(self, container: QtWidgets.QVBoxLayout):
+        # 7. Memory write
+        row = self._row_shell("Memory write")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        mw_cima = self._spin(0, 63)
+        row.addWidget(mw_cima)
+        row.addWidget(QtWidgets.QLabel("bank addr:"))
+        mw_bank = self._spin(0, 0xFFFF)
+        row.addWidget(mw_bank)
+        row.addWidget(QtWidgets.QLabel("weight value:"))
+        mw_w = self._spin(0, 0xFFFF)
+        row.addWidget(mw_w)
+        row.addWidget(QtWidgets.QLabel("fault (UB):"))
+        mw_fault = self._text("e.g. 0")
+        row.addWidget(mw_fault)
+        row.addStretch(1)
+        mw_note = QtWidgets.QLabel("requires compiler binary")
+        mw_note.setStyleSheet("color: #b9c0cc;")
+        row.addWidget(mw_note)
+        mw_btn = QtWidgets.QPushButton("Run")
+        mw_btn.setProperty("kind", "primary")
+        mw_btn.clicked.connect(lambda: self._emit("memory_write", {"cima": int(mw_cima.value()), "bank_addr": int(mw_bank.value()), "weight_value": int(mw_w.value()), "fault_setting": mw_fault.text()}))
+        row.addWidget(mw_btn)
+        container.addLayout(row)
+
+        # 8. Memory read
+        row = self._row_shell("Memory read")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        mr_cima = self._spin(0, 63)
+        row.addWidget(mr_cima)
+        row.addWidget(QtWidgets.QLabel("bank addr:"))
+        mr_bank = self._spin(0, 0xFFFF)
+        row.addWidget(mr_bank)
+        row.addWidget(QtWidgets.QLabel("fault (UB):"))
+        mr_fault = self._text("e.g. 0")
+        row.addWidget(mr_fault)
+        row.addStretch(1)
+        mr_btn = QtWidgets.QPushButton("Run")
+        mr_btn.setProperty("kind", "primary")
+        mr_btn.clicked.connect(lambda: self._emit("memory_read", {"cima": int(mr_cima.value()), "bank_addr": int(mr_bank.value()), "fault_setting": mr_fault.text()}))
+        row.addWidget(mr_btn)
+        container.addLayout(row)
+
+        # 8b. Memory BIST
+        row = self._row_shell("Memory BIST (back-to-back)")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        mb_cima = self._spin(0, 63)
+        row.addWidget(mb_cima)
+        row.addWidget(QtWidgets.QLabel("bank addr:"))
+        mb_bank = self._spin(0, 0xFFFF)
+        row.addWidget(mb_bank)
+        row.addWidget(QtWidgets.QLabel("fault (UB):"))
+        mb_fault = self._text("e.g. 0")
+        row.addWidget(mb_fault)
+        row.addStretch(1)
+        mb_btn = QtWidgets.QPushButton("Run")
+        mb_btn.setProperty("kind", "primary")
+        mb_btn.clicked.connect(lambda: self._emit("memory_bist", {"cima": int(mb_cima.value()), "bank_addr": int(mb_bank.value()), "fault_setting": mb_fault.text()}))
+        row.addWidget(mb_btn)
+        container.addLayout(row)
+
+        # 10. CWRAP write
+        row = self._row_shell("CWRAP write")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        cw_cima = self._spin(0, 63)
+        row.addWidget(cw_cima)
+        row.addWidget(QtWidgets.QLabel("register:"))
+        cw_reg = self._text("REG")
+        row.addWidget(cw_reg)
+        row.addWidget(QtWidgets.QLabel("space:"))
+        cw_space = self._combo(["single", "entire space"])
+        row.addWidget(cw_space)
+        row.addStretch(1)
+        cw_btn = QtWidgets.QPushButton("Run")
+        cw_btn.setProperty("kind", "primary")
+        cw_btn.clicked.connect(lambda: self._emit("cwrap_write", {"cima": int(cw_cima.value()), "register": cw_reg.text(), "space": cw_space.currentText()}))
+        row.addWidget(cw_btn)
+        container.addLayout(row)
+
+        # 11. CWRAP read
+        row = self._row_shell("CWRAP read")
+        row.addWidget(QtWidgets.QLabel("CIMA#:"))
+        cr_cima = self._spin(0, 63)
+        row.addWidget(cr_cima)
+        row.addWidget(QtWidgets.QLabel("register:"))
+        cr_reg = self._text("REG")
+        row.addWidget(cr_reg)
+        row.addWidget(QtWidgets.QLabel("space:"))
+        cr_space = self._combo(["single", "entire space"])
+        row.addWidget(cr_space)
+        row.addStretch(1)
+        cr_btn = QtWidgets.QPushButton("Run")
+        cr_btn.setProperty("kind", "primary")
+        cr_btn.clicked.connect(lambda: self._emit("cwrap_read", {"cima": int(cr_cima.value()), "register": cr_reg.text(), "space": cr_space.currentText()}))
+        row.addWidget(cr_btn)
+        container.addLayout(row)
+
+    def _build_buck_rows(self, container: QtWidgets.QVBoxLayout):
+        # 12. BUCK HADC measurement
+        row = self._row_shell("BUCK HADC measurement")
+        row.addWidget(QtWidgets.QLabel("BUCK#:"))
+        b_idx = self._spin(0, 1)
+        row.addWidget(b_idx)
+        row.addWidget(QtWidgets.QLabel("Analog ATP:"))
+        b_atp = self._combo(["Off", "On"]) 
+        row.addWidget(b_atp)
+        row.addWidget(QtWidgets.QLabel("Test point:"))
+        b_tp = self._text("e.g. TP_B1")
+        row.addWidget(b_tp)
+        row.addStretch(1)
+        b_btn = QtWidgets.QPushButton("Run")
+        b_btn.setProperty("kind", "primary")
+        b_btn.clicked.connect(lambda: self._emit("buck_hadc_measure", {"buck": int(b_idx.value()), "analog_atp": b_atp.currentText(), "test_point": b_tp.text()}))
+        row.addWidget(b_btn)
+        container.addLayout(row)
+
+        # 13. BUCK HADC self test
+        row = self._row_shell("BUCK HADC self test")
+        row.addWidget(QtWidgets.QLabel("BUCK#:"))
+        bs_idx = self._spin(0, 1)
+        row.addWidget(bs_idx)
+        row.addWidget(QtWidgets.QLabel("Analog ATP:"))
+        bs_atp = self._combo(["Off", "On"]) 
+        row.addWidget(bs_atp)
+        row.addWidget(QtWidgets.QLabel("Test point:"))
+        bs_tp = self._text("e.g. TP_B1")
+        row.addWidget(bs_tp)
+        row.addStretch(1)
+        bs_btn = QtWidgets.QPushButton("Run")
+        bs_btn.setProperty("kind", "primary")
+        bs_btn.clicked.connect(lambda: self._emit("buck_hadc_self_test", {"buck": int(bs_idx.value()), "analog_atp": bs_atp.currentText(), "test_point": bs_tp.text()}))
+        row.addWidget(bs_btn)
+        container.addLayout(row)
+
+        # 14. BUCK reference calibration
+        row = self._row_shell("BUCK reference calibration")
+        row.addWidget(QtWidgets.QLabel("BUCK_TOP# (reference):"))
+        br_ref = self._spin(0, 1)
+        row.addWidget(br_ref)
+        row.addStretch(1)
+        br_btn = QtWidgets.QPushButton("Run")
+        br_btn.setProperty("kind", "primary")
+        br_btn.clicked.connect(lambda: self._emit("buck_reference_calibration", {"buck_top_ref": int(br_ref.value())}))
+        row.addWidget(br_btn)
+        container.addLayout(row)
+
+        # 15. BUCK slave calibration
+        row = self._row_shell("BUCK slave calibration")
+        row.addWidget(QtWidgets.QLabel("BUCK_TOP# (slave):"))
+        bs_slave = self._spin(0, 1)
+        row.addWidget(bs_slave)
+        row.addStretch(1)
+        bs_cal_btn = QtWidgets.QPushButton("Run")
+        bs_cal_btn.setProperty("kind", "primary")
+        bs_cal_btn.clicked.connect(lambda: self._emit("buck_slave_calibration", {"buck_top_slave": int(bs_slave.value())}))
+        row.addWidget(bs_cal_btn)
+        container.addLayout(row)
+
+        # 16. BUCK Power on
+        row = self._row_shell("BUCK Power on")
+        row.addWidget(QtWidgets.QLabel("BUCK#:"))
+        bp_idx = self._spin(0, 1)
+        row.addWidget(bp_idx)
+        row.addWidget(QtWidgets.QLabel("Analog ATP:"))
+        bp_atp = self._combo(["Off", "On"]) 
+        row.addWidget(bp_atp)
+        row.addWidget(QtWidgets.QLabel("Test point:"))
+        bp_tp = self._text("e.g. TP_B1")
+        row.addWidget(bp_tp)
+        row.addStretch(1)
+        bp_btn = QtWidgets.QPushButton("Run")
+        bp_btn.setProperty("kind", "primary")
+        bp_btn.clicked.connect(lambda: self._emit("buck_power_on", {"buck": int(bp_idx.value()), "analog_atp": bp_atp.currentText(), "test_point": bp_tp.text()}))
+        row.addWidget(bp_btn)
+        container.addLayout(row)
+
+    # ---------- Emit helper ----------
+    def _emit(self, test_id: str, params: dict):
+        # Always emit the signal for external listeners
+        self.runRequested.emit(test_id, params)
+        # If no executor, show a friendly summary; otherwise delegate
+        if self.executor is None:
+            lines = [f"{k}: {v}" for k, v in params.items()]
+            QtWidgets.QMessageBox.information(self, f"{test_id}", "\n".join(lines) or "(no params)")
+            return
+        try:
+            self.executor(test_id, params)
+        except Exception as exc:
+            QtWidgets.QMessageBox.critical(self, "Execution error", str(exc))
+
 # ---------- Main Window ----------
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -1428,7 +1861,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_cima = CimaTab("CIMA", CIMA_REGISTERS)
         self.tab_cima_mvm = CimaMvmTab()
         self.tab_board = BoardTab()
-        self.tab_functions = AnalogTab("Functions")
+        self.tab_functions = FunctionsTab()
 
         self.tabs.addTab(self.tab_buck0, "BUCK0")
         self.tabs.addTab(self.tab_buck1, "BUCK1")
