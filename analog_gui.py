@@ -892,6 +892,474 @@ Rows with non-zero D entries: {non_zero_d_count}"""
             lines.append(f"  Channel {ch}: {entries}")
         QtWidgets.QMessageBox.information(self, "Write ADCs (by channel)", "\n".join(lines))
 
+# ---------- Board Tab (APIs) ----------
+
+class BoardTab(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._build_ui()
+
+    def _build_ui(self):
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(16, 16, 16, 16)
+        outer.setSpacing(12)
+
+        header = QtWidgets.QLabel("Board")
+        header.setObjectName("sectionHeader")
+        outer.addWidget(header)
+
+        # Container for API rows inside a scroll area so the window can be resized smaller
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+
+        content = QtWidgets.QWidget()
+        self.api_container = QtWidgets.QVBoxLayout(content)
+        self.api_container.setContentsMargins(0, 0, 0, 0)
+        self.api_container.setSpacing(10)
+
+        # 1.1 – 1.20 API rows
+        self._add_system_info_row()          # 1.1
+        self._add_i2c_scan_row()             # 1.2
+        self._add_powerup_row()              # 1.3
+        self._add_powerdown_row()            # 1.4
+        self._add_set_voltage_row()          # 1.5
+        self._add_get_rail_voltage_row()     # 1.6
+        self._add_get_rail_current_row()     # 1.7
+        self._add_get_cima_adc_voltage_row() # 1.8
+        self._add_dut_reset_row()            # 1.9
+        self._add_fpga_reset_row()           # 1.10
+        self._add_ftdi_reset_row()           # 1.11
+        self._add_jtag_reset_status_row()    # 1.12
+        self._add_gpio_write_row()           # 1.13
+        self._add_gpio_read_row()            # 1.14
+        self._add_get_dut_pinstatus_row()    # 1.15
+        self._add_dut_clk_control_row()      # 1.16
+        self._add_clock_config_row()         # 1.17
+        self._add_csr_write_row()            # 1.18
+        self._add_csr_read_row()             # 1.19
+        self._add_exit_row()                 # 1.20
+
+        # Add stretch at the end so content hugs the top, then mount into scroll area
+        self.api_container.addStretch(1)
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
+
+    # ---------- Helpers ----------
+    def _add_row_shell(self, title_text: str) -> QtWidgets.QHBoxLayout:
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(8)
+        title = QtWidgets.QLabel(title_text)
+        title.setWordWrap(True)
+        title.setMinimumWidth(180)
+        row.addWidget(title)
+        return row
+
+    def _warn(self, title: str, message: str):
+        QtWidgets.QMessageBox.warning(self, title, message)
+
+    def _info(self, title: str, message: str):
+        QtWidgets.QMessageBox.information(self, title, message)
+
+    # ---------- 1.1 System_Info ----------
+    def _add_system_info_row(self):
+        row = self._add_row_shell("System Info")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("System_Info()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_system_info_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_system_info_clicked(self):
+        self._info("System_Info", "Query system versions (placeholder).")
+
+    # ---------- 1.2 I2C_Dev_Scan ----------
+    def _add_i2c_scan_row(self):
+        row = self._add_row_shell("I2C Device Scan")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("I2C_Dev_Scan()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_i2c_scan_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_i2c_scan_clicked(self):
+        self._info("I2C_Dev_Scan", "Scanning I2C devices (placeholder).")
+
+    # ---------- 1.3 Powerup_DUT ----------
+    def _add_powerup_row(self):
+        row = self._add_row_shell("Powerup DUT")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Powerup_DUT()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_powerup_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_powerup_clicked(self):
+        self._info("Powerup_DUT", "Powering up DUT with default delays (placeholder).")
+
+    # ---------- 1.4 Powerdown_DUT ----------
+    def _add_powerdown_row(self):
+        row = self._add_row_shell("Powerdown DUT")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Powerdown_DUT()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_powerdown_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_powerdown_clicked(self):
+        self._info("Powerdown_DUT", "Powering down DUT (placeholder).")
+
+    def _add_set_voltage_row(self):
+        row = self._add_row_shell("Set Voltage")
+
+        # railNumber (1-16)
+        rail_label = QtWidgets.QLabel("railNumber:")
+        row.addWidget(rail_label)
+        self.rail_spin = QtWidgets.QSpinBox()
+        self.rail_spin.setRange(1, 16)
+        self.rail_spin.setToolTip("Rail index (1-16)")
+        row.addWidget(self.rail_spin)
+
+        # voltValue in mV (range varies by rail; placeholder bounds here)
+        volt_label = QtWidgets.QLabel("voltValue (mV):")
+        row.addWidget(volt_label)
+        self.volt_spin = QtWidgets.QSpinBox()
+        self.volt_spin.setRange(0, 5000)  # Placeholder bounds; varies by rail
+        self.volt_spin.setSingleStep(10)
+        self.volt_spin.setSuffix(" mV")
+        self.volt_spin.setToolTip("Voltage in mV. Range depends on rail (placeholder 0..5000 mV).")
+        row.addWidget(self.volt_spin)
+
+        self.range_hint = QtWidgets.QLabel("Allowed: 0–5000 mV (per rail varies)")
+        self.range_hint.setStyleSheet("color: #b9c0cc;")
+        row.addWidget(self.range_hint)
+
+        row.addStretch(1)
+
+        self.set_voltage_btn = QtWidgets.QPushButton("Set Voltage")
+        self.set_voltage_btn.setProperty("kind", "primary")
+        self.set_voltage_btn.clicked.connect(self.on_set_voltage_clicked)
+        row.addWidget(self.set_voltage_btn)
+
+        self.api_container.addLayout(row)
+
+        # If exact per-rail ranges are later provided, connect a handler to update hint/range
+        self.rail_spin.valueChanged.connect(self._update_voltage_range_hint)
+        self._update_voltage_range_hint()
+
+    def _update_voltage_range_hint(self):
+        rail = int(self.rail_spin.value())
+        # Placeholder mapping; adjust when exact ranges are known
+        default_min, default_max = 0, 5000
+        min_mv, max_mv = default_min, default_max
+        self.volt_spin.setRange(min_mv, max_mv)
+        self.range_hint.setText(f"Allowed: {min_mv}–{max_mv} mV (rail {rail})")
+
+    # Placeholder backend call for Set_Voltage
+    def on_set_voltage_clicked(self):
+        rail = int(self.rail_spin.value())
+        mv = int(self.volt_spin.value())
+        # In the absence of backend, show a status dialog summarizing the action
+        QtWidgets.QMessageBox.information(
+            self,
+            "Set_Voltage",
+            f"Set_Voltage(railNumber={rail}, voltValue={mv})\nStatus: placeholder (returns int status code)",
+        )
+
+    # ---------- 1.6 Get_Rail_Voltage ----------
+    def _add_get_rail_voltage_row(self):
+        row = self._add_row_shell("Get Rail Voltage")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Get_Rail_Voltage()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_get_rail_voltage_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_get_rail_voltage_clicked(self):
+        self._info("Get_Rail_Voltage", "Read all rail voltages (placeholder).")
+
+    # ---------- 1.7 Get_Rail_Current ----------
+    def _add_get_rail_current_row(self):
+        row = self._add_row_shell("Get Rail Current")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Get_Rail_Current()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_get_rail_current_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_get_rail_current_clicked(self):
+        self._info("Get_Rail_Current", "Read all rail currents (placeholder).")
+
+    # ---------- 1.8 Get_CIMA_ADC_Voltage(select) ----------
+    def _add_get_cima_adc_voltage_row(self):
+        row = self._add_row_shell("Get CIMA ADC Voltage")
+        row.addWidget(QtWidgets.QLabel("select:"))
+        self.cima_select = QtWidgets.QSpinBox()
+        self.cima_select.setRange(0, 3)
+        self.cima_select.setToolTip("0:CIMA0, 1:CIMA1, 2:CIMA2, 3:CIMA3")
+        row.addWidget(self.cima_select)
+        hint = QtWidgets.QLabel("0:CIMA0 1:CIMA1 2:CIMA2 3:CIMA3")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #b9c0cc;")
+        row.addWidget(hint)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Get_CIMA_ADC_Voltage()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_get_cima_adc_voltage_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_get_cima_adc_voltage_clicked(self):
+        sel = int(self.cima_select.value())
+        self._info("Get_CIMA_ADC_Voltage", f"select={sel} (placeholder return status & values)")
+
+    # ---------- 1.9 DUT_Reset(resetMethod) ----------
+    def _add_dut_reset_row(self):
+        row = self._add_row_shell("DUT Reset")
+        row.addWidget(QtWidgets.QLabel("resetMethod:"))
+        self.reset_method = QtWidgets.QSpinBox()
+        self.reset_method.setRange(0, 1)
+        self.reset_method.setToolTip("0: RP5 reset, 1: FPGA reset")
+        row.addWidget(self.reset_method)
+        hint = QtWidgets.QLabel("0:RP5 1:FPGA")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #b9c0cc;")
+        row.addWidget(hint)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("DUT_Reset()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_dut_reset_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_dut_reset_clicked(self):
+        method = int(self.reset_method.value())
+        self._info("DUT_Reset", f"resetMethod={method} (placeholder)")
+
+    # ---------- 1.10 FPGA_Reset ----------
+    def _add_fpga_reset_row(self):
+        row = self._add_row_shell("FPGA Reset")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("FPGA_Reset()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_fpga_reset_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_fpga_reset_clicked(self):
+        self._info("FPGA_Reset", "Resetting FPGA (placeholder).")
+
+    # ---------- 1.11 FTDI_Reset ----------
+    def _add_ftdi_reset_row(self):
+        row = self._add_row_shell("FTDI Reset")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("FTDI_Reset()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_ftdi_reset_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_ftdi_reset_clicked(self):
+        self._info("FTDI_Reset", "Resetting FTDI (placeholder).")
+
+    # ---------- 1.12 JTAG_Reset_Status ----------
+    def _add_jtag_reset_status_row(self):
+        row = self._add_row_shell("JTAG Reset Status")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("JTAG_Reset_Status()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_jtag_reset_status_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_jtag_reset_status_clicked(self):
+        self._info("JTAG_Reset_Status", "Reading JTAG reset pins (placeholder).")
+
+    # ---------- 1.13 GPIO_Write(direction, writeValue) ----------
+    def _add_gpio_write_row(self):
+        row = self._add_row_shell("GPIO Write")
+        row.addWidget(QtWidgets.QLabel("direction:"))
+        self.gpio_dir = ClearLineEdit(placeholder="0xFFFFFFFF", align_center=False)
+        self.gpio_dir.setToolTip("32-bit direction mask. 1=Output, 0=Input. Accepts decimal or 0xHEX.")
+        self.gpio_dir.setMinimumWidth(140)
+        row.addWidget(self.gpio_dir)
+        row.addWidget(QtWidgets.QLabel("writeValue:"))
+        self.gpio_wr = ClearLineEdit(placeholder="0x00000000", align_center=False)
+        self.gpio_wr.setToolTip("32-bit value written to pins configured as outputs. Accepts decimal or 0xHEX.")
+        self.gpio_wr.setMinimumWidth(140)
+        row.addWidget(self.gpio_wr)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("GPIO_Write()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_gpio_write_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def _parse_int_field(self, editor: QtWidgets.QLineEdit, bits: int, name: str) -> Optional[int]:
+        text = (editor.text() or "").strip()
+        if not text:
+            self._warn(name, f"Enter a value for {name}.")
+            return None
+        try:
+            value = int(text, 0)
+        except Exception:
+            self._warn(name, f"Invalid number for {name}. Use decimal or 0xHEX.")
+            return None
+        if value < 0 or value > ((1 << bits) - 1):
+            self._warn(name, f"{name} out of range 0..0x{((1<<bits)-1):X}.")
+            return None
+        return value
+
+    def on_gpio_write_clicked(self):
+        direction = self._parse_int_field(self.gpio_dir, 32, "direction")
+        if direction is None:
+            return
+        write_val = self._parse_int_field(self.gpio_wr, 32, "writeValue")
+        if write_val is None:
+            return
+        self._info("GPIO_Write", f"direction=0x{direction:08X}, writeValue=0x{write_val:08X} (placeholder)")
+
+    # ---------- 1.14 GPIO_Read ----------
+    def _add_gpio_read_row(self):
+        row = self._add_row_shell("GPIO Read")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("GPIO_Read()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_gpio_read_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_gpio_read_clicked(self):
+        self._info("GPIO_Read", "Reading 32 GPIOs (placeholder). Returns 32-bit value.")
+
+    # ---------- 1.15 Get_DUT_PinStatus ----------
+    def _add_get_dut_pinstatus_row(self):
+        row = self._add_row_shell("Get DUT Pin Status")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Get_DUT_PinStatus()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_get_dut_pinstatus_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_get_dut_pinstatus_clicked(self):
+        self._info("Get_DUT_PinStatus", "Reading DUT pin status (placeholder).")
+
+    # ---------- 1.16 DUT_Clk_Control(enable) ----------
+    def _add_dut_clk_control_row(self):
+        row = self._add_row_shell("DUT Clk Control")
+        row.addWidget(QtWidgets.QLabel("enable:"))
+        self.clk_enable = QtWidgets.QSpinBox()
+        self.clk_enable.setRange(0, 7)
+        self.clk_enable.setToolTip("Bit2:PCIE, Bit1:LVCMOS, Bit0:NPU_LVDS")
+        row.addWidget(self.clk_enable)
+        hint = QtWidgets.QLabel("Bits: [2 PCIE][1 LVCMOS][0 NPU]")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #b9c0cc;")
+        row.addWidget(hint)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("DUT_Clk_Control()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_dut_clk_control_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_dut_clk_control_clicked(self):
+        val = int(self.clk_enable.value())
+        self._info("DUT_Clk_Control", f"enable=0x{val:X} (placeholder)")
+
+    # ---------- 1.17 Clock Configuration (clkDevice) ----------
+    def _add_clock_config_row(self):
+        row = self._add_row_shell("Clock Configuration")
+        row.addWidget(QtWidgets.QLabel("clkDevice:"))
+        self.clk_device = QtWidgets.QSpinBox()
+        self.clk_device.setRange(0, 1)
+        self.clk_device.setToolTip("0:NPU_LVDS_CLK, 1:LVCMOS_CLK")
+        row.addWidget(self.clk_device)
+        hint = QtWidgets.QLabel("0:NPU_LVDS_CLK 1:LVCMOS_CLK")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #b9c0cc;")
+        row.addWidget(hint)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Clock_Configuration()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_clock_configuration_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_clock_configuration_clicked(self):
+        dev = int(self.clk_device.value())
+        self._info("Clock Configuration", f"clkDevice={dev} (placeholder; uses en1_system_config.ini)")
+
+    # ---------- 1.18 CSR_Write(regAddr, dataValue) ----------
+    def _add_csr_write_row(self):
+        row = self._add_row_shell("CSR Write")
+        row.addWidget(QtWidgets.QLabel("regAddr:"))
+        self.csr_addr_wr = QtWidgets.QSpinBox()
+        self.csr_addr_wr.setRange(0, 0xFF)
+        self.csr_addr_wr.setToolTip("Register address 0x00–0xFF")
+        row.addWidget(self.csr_addr_wr)
+
+        row.addWidget(QtWidgets.QLabel("dataValue:"))
+        self.csr_data = ClearLineEdit(placeholder="0x00000000", align_center=False)
+        self.csr_data.setMinimumWidth(140)
+        self.csr_data.setToolTip("32-bit value. Accepts decimal or 0xHEX.")
+        row.addWidget(self.csr_data)
+
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("CSR_Write()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_csr_write_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_csr_write_clicked(self):
+        addr = int(self.csr_addr_wr.value())
+        data = self._parse_int_field(self.csr_data, 32, "dataValue")
+        if data is None:
+            return
+        self._info("CSR_Write", f"regAddr=0x{addr:02X}, dataValue=0x{data:08X} (placeholder)")
+
+    # ---------- 1.19 CSR_Read(regAddr) ----------
+    def _add_csr_read_row(self):
+        row = self._add_row_shell("CSR Read")
+        row.addWidget(QtWidgets.QLabel("regAddr:"))
+        self.csr_addr_rd = QtWidgets.QSpinBox()
+        self.csr_addr_rd.setRange(0, 0xFF)
+        self.csr_addr_rd.setToolTip("Register address 0x00–0xFF")
+        row.addWidget(self.csr_addr_rd)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("CSR_Read()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_csr_read_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_csr_read_clicked(self):
+        addr = int(self.csr_addr_rd.value())
+        self._info("CSR_Read", f"regAddr=0x{addr:02X} (placeholder; returns readData)")
+
+    # ---------- 1.20 Exit_Function ----------
+    def _add_exit_row(self):
+        row = self._add_row_shell("Exit Application")
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Exit_Function()")
+        btn.setProperty("kind", "accent")
+        btn.clicked.connect(self.on_exit_function_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_exit_function_clicked(self):
+        app = QtWidgets.QApplication.instance()
+        if app:
+            app.quit()
+
 # ---------- Main Window ----------
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -916,7 +1384,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_buck1 = AnalogTab("BUCK1", BUCK_ALL_REGISTERS)
         self.tab_cima = CimaTab("CIMA", CIMA_REGISTERS)
         self.tab_cima_mvm = CimaMvmTab()
-        self.tab_board = AnalogTab("Board")
+        self.tab_board = BoardTab()
         self.tab_functions = AnalogTab("Functions")
 
         self.tabs.addTab(self.tab_buck0, "BUCK0")
