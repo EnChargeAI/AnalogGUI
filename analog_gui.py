@@ -914,34 +914,76 @@ class BoardTab(QtWidgets.QWidget):
         scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
 
         content = QtWidgets.QWidget()
-        self.api_container = QtWidgets.QVBoxLayout(content)
-        self.api_container.setContentsMargins(0, 0, 0, 0)
-        self.api_container.setSpacing(10)
+        content_layout = QtWidgets.QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
 
-        # 1.1 – 1.20 API rows
+        # Use a toolbox to organize APIs into tidy sections
+        self.toolbox = QtWidgets.QToolBox()
+
+        def add_section(title: str):
+            page = QtWidgets.QWidget()
+            v = QtWidgets.QVBoxLayout(page)
+            v.setContentsMargins(6, 6, 6, 6)
+            v.setSpacing(8)
+            self.toolbox.addItem(page, title)
+            return v
+
+        layout_system   = add_section("System")
+        layout_power    = add_section("Power & Rails")
+        layout_cima     = add_section("CIMA / ADC")
+        layout_resets   = add_section("Resets & Status")
+        layout_gpio     = add_section("GPIO")
+        layout_clocks   = add_section("Clocks")
+        layout_csr      = add_section("FPGA CSR")
+        layout_misc     = add_section("Misc")
+
+        # Build rows into each section by temporarily pointing api_container
+        self.api_container = layout_system
         self._add_system_info_row()          # 1.1
         self._add_i2c_scan_row()             # 1.2
+        self.api_container.addStretch(1)
+
+        self.api_container = layout_power
         self._add_powerup_row()              # 1.3
         self._add_powerdown_row()            # 1.4
         self._add_set_voltage_row()          # 1.5
         self._add_get_rail_voltage_row()     # 1.6
         self._add_get_rail_current_row()     # 1.7
+        self.api_container.addStretch(1)
+
+        self.api_container = layout_cima
         self._add_get_cima_adc_voltage_row() # 1.8
+        self.api_container.addStretch(1)
+
+        self.api_container = layout_resets
         self._add_dut_reset_row()            # 1.9
         self._add_fpga_reset_row()           # 1.10
         self._add_ftdi_reset_row()           # 1.11
         self._add_jtag_reset_status_row()    # 1.12
+        self._add_get_dut_pinstatus_row()    # 1.15
+        self.api_container.addStretch(1)
+
+        self.api_container = layout_gpio
         self._add_gpio_write_row()           # 1.13
         self._add_gpio_read_row()            # 1.14
-        self._add_get_dut_pinstatus_row()    # 1.15
+        self.api_container.addStretch(1)
+
+        self.api_container = layout_clocks
         self._add_dut_clk_control_row()      # 1.16
         self._add_clock_config_row()         # 1.17
+        self.api_container.addStretch(1)
+
+        self.api_container = layout_csr
         self._add_csr_write_row()            # 1.18
         self._add_csr_read_row()             # 1.19
-        self._add_exit_row()                 # 1.20
-
-        # Add stretch at the end so content hugs the top, then mount into scroll area
         self.api_container.addStretch(1)
+
+        self.api_container = layout_misc
+        self._add_exit_row()                 # 1.20
+        self.api_container.addStretch(1)
+
+        content_layout.addWidget(self.toolbox)
         scroll.setWidget(content)
         outer.addWidget(scroll, 1)
 
@@ -951,7 +993,8 @@ class BoardTab(QtWidgets.QWidget):
         row.setSpacing(8)
         title = QtWidgets.QLabel(title_text)
         title.setWordWrap(True)
-        title.setMinimumWidth(180)
+        title.setMinimumWidth(200)
+        title.setStyleSheet("font-weight: 600; color: #e6e8eb;")
         row.addWidget(title)
         return row
 
