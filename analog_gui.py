@@ -657,6 +657,10 @@ class CimaMvmTab(QtWidgets.QWidget):
 
         bottom = QtWidgets.QHBoxLayout()
         bottom.addStretch(1)
+        self.write_adcs_btn = QtWidgets.QPushButton("Write ADCs (by channel)")
+        self.write_adcs_btn.setEnabled(False)
+        self.write_adcs_btn.clicked.connect(self.on_write_adcs_clicked)
+        bottom.addWidget(self.write_adcs_btn)
         self.do_mvm_btn = QtWidgets.QPushButton("DO_MVM")
         self.do_mvm_btn.setProperty("kind", "accent")
         self.do_mvm_btn.setEnabled(False)
@@ -688,14 +692,70 @@ class CimaMvmTab(QtWidgets.QWidget):
         def is_single_576(vec):
             return vec.count(576) == 1 and all((v in (0, 576)) for v in vec)
 
-        # WT1 requirement: if D[r] > 0 then WT1[r] must be non-empty
+        # Helper to parse WT1 cell as either a single value or by-channel spec
+        def parse_wt1_spec(txt: str):
+            txt = (txt or "").strip()
+            if not txt:
+                return None
+            # Accepted formats:
+            #  - "7" → applies to all channels (single value)
+            #  - "7,5,3,1" → values by channel index starting at 0
+            #  - "c0=7,c1=5" or "0:7 1:5" → explicit channel/value pairs
+            # Returns a dict: {channel_index: value} or {"*": value}
+            # All values are integers 0..15
+            def parse_int(s):
+                return int(s.strip(), 0)
+            # explicit channel pairs
+            if any(ch in txt for ch in ["=", ":"]):
+                mapping = {}
+                # split by comma or whitespace
+                parts = [p for p in txt.replace(",", " ").split() if p]
+                for p in parts:
+                    if ":" in p:
+                        k, v = p.split(":", 1)
+                    elif "=" in p:
+                        k, v = p.split("=", 1)
+                    else:
+                        return None
+                    k = k.strip().lower().lstrip("c")
+                    try:
+                        ch = int(k, 0)
+                        val = parse_int(v)
+                    except Exception:
+                        return None
+                    if not (0 <= val <= 15):
+                        return None
+                    mapping[ch] = val
+                return mapping if mapping else None
+            # list of values
+            if "," in txt or " " in txt:
+                try:
+                    vals = [parse_int(x) for x in txt.replace(",", " ").split() if x]
+                except Exception:
+                    return None
+                if not vals or any(v < 0 or v > 15 for v in vals):
+                    return None
+                return {i: v for i, v in enumerate(vals)}
+            # single value
+            try:
+                v = parse_int(txt)
+            except Exception:
+                return None
+            if not (0 <= v <= 15):
+                return None
+            return {"*": v}
+
+        # WT1 requirement: if D[r] > 0 then WT1[r] must be non-empty and valid
         wt1_ok = True
+        any_wt1 = False
         for r in range(rows):
             if colD[r] > 0:
-                txt = (self.table.item(r, 4).text() or "").strip()
-                if not txt:
+                spec_txt = (self.table.item(r, 4).text() or "").strip()
+                parsed = parse_wt1_spec(spec_txt)
+                if not parsed:
                     wt1_ok = False
                     break
+                any_wt1 = True
 
         # Two legal modes per spec:
         #  - Differing weights:  D distributes to 576, B is a single 576 row
@@ -713,6 +773,8 @@ class CimaMvmTab(QtWidgets.QWidget):
             self.status_label.setStyleSheet("color: #ff6b6b; font-weight: 600;")
 
         self.do_mvm_btn.setEnabled(valid)
+        # Allow ADC writing when the table is valid and at least one WT1 spec is present
+        self.write_adcs_btn.setEnabled(valid and any_wt1)
 
     def on_do_mvm_clicked(self):
         rows = self.table.rowCount()
@@ -743,6 +805,92 @@ Sum D: {sum_d}
 Rows with non-zero B entries: {non_zero_b_count}
 Rows with non-zero D entries: {non_zero_d_count}"""
         QtWidgets.QMessageBox.information(self, "DO_MVM Summary", summary)
+
+    def on_write_adcs_clicked(self):
+        rows = self.table.rowCount()
+
+        # Reuse the local parser defined in validation by duplicating minimal logic here
+        def parse_wt1_spec(txt: str):
+            txt = (txt or "").strip()
+            if not txt:
+                return None
+            def parse_int(s):
+                return int(s.strip(), 0)
+            if any(ch in txt for ch in ["=", ":"]):
+                mapping = {}
+                parts = [p for p in txt.replace(",", " ").split() if p]
+                for p in parts:
+                    if ":" in p:
+                        k, v = p.split(":", 1)
+                    elif "=" in p:
+                        k, v = p.split("=", 1)
+                    else:
+                        return None
+                    k = k.strip().lower().lstrip("c")
+                    ch = int(k, 0)
+                    val = parse_int(v)
+                    if not (0 <= val <= 15):
+                        return None
+                    mapping[ch] = val
+                return mapping if mapping else None
+            if "," in txt or " " in txt:
+                vals = [int(x, 0) for x in txt.replace(",", " ").split() if x]
+                if not vals or any(v < 0 or v > 15 for v in vals):
+                    return None
+                return {i: v for i, v in enumerate(vals)}
+            v = int(txt, 0)
+            if not (0 <= v <= 15):
+                return None
+            return {"*": v}
+
+        # Determine which column distributes to 576 to know which rows to consider
+        colB = [int(self.table.item(r, 1).text() or "0") for r in range(rows)]
+        colD = [int(self.table.item(r, 3).text() or "0") for r in range(rows)]
+
+        sum_b = sum(colB)
+        sum_d = sum(colD)
+        def is_single_576(vec):
+            return vec.count(576) == 1 and all((v == 0 or v == 576) for v in vec)
+
+        differing_weights_mode = (sum_d == self.TOTAL) and is_single_576(colB)
+        differing_activation_mode = (sum_b == self.TOTAL) and is_single_576(colD)
+
+        # Aggregate per-channel values from WT1 cells for relevant rows
+        channel_values = {}
+        for r in range(rows):
+            consider = False
+            if differing_weights_mode and colD[r] > 0:
+                consider = True
+            if differing_activation_mode and colB[r] > 0:
+                consider = True
+            if not consider:
+                continue
+            spec = parse_wt1_spec(self.table.item(r, 4).text())
+            if not spec:
+                continue
+            if "*" in spec:
+                # broadcast single value to all present channels we have so far (or default to 2 channels)
+                broadcast_val = spec["*"]
+                if channel_values:
+                    targets = list(channel_values.keys())
+                else:
+                    targets = [0, 1]
+                for ch in targets:
+                    channel_values.setdefault(ch, []).append((r, broadcast_val))
+            else:
+                for ch, val in spec.items():
+                    channel_values.setdefault(ch, []).append((r, val))
+
+        if not channel_values:
+            QtWidgets.QMessageBox.warning(self, "Write ADCs", "No per-channel WT1 values parsed.")
+            return
+
+        # Summarize the writes we would perform (placeholder for actual HW writes)
+        lines = [f"Selected CIMA index: {self.target_cima.value()}", "Per-channel WT1 programming (nibble values):"]
+        for ch in sorted(channel_values.keys()):
+            entries = ", ".join([f"row {r}: {v}" for r, v in channel_values[ch]])
+            lines.append(f"  Channel {ch}: {entries}")
+        QtWidgets.QMessageBox.information(self, "Write ADCs (by channel)", "\n".join(lines))
 
 # ---------- Main Window ----------
 
