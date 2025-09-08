@@ -122,6 +122,158 @@ PORTS_SAMPLE = [
     "ADC_IN1",
 ]
 
+# ---------- CIMA IO Register List (filtered) ----------
+# Kept only Data/Config/Control; skipped SCAN_*, supplies (DVDD/AVDD*/DVSS/AGND), signals, and CLKs
+CIMA_REGISTERS = [
+    # Data banks
+    ("DATA_WR_BANK0<127:0>", "0"),
+    ("DATA_WR_BANK1<127:0>", "0"),
+    ("DATA_WR_BANK2<127:0>", "0"),
+    ("DATA_WR_BANK3<127:0>", "0"),
+    ("DATA_RD_BANK0<127:0>", "0"),
+    ("DATA_RD_BANK1<127:0>", "0"),
+    ("DATA_RD_BANK2<127:0>", "0"),
+    ("DATA_RD_BANK3<127:0>", "0"),
+    ("CIMA_WR_RDB", "0"),
+    ("MEM_CH_FAULT<67:0>", "0"),
+
+    # Wordline controls
+    ("WL_WID_CTRL<3:0>", "8"),
+    ("WL_DLY_CTRL<3:0>", "8"),
+
+    # Address and bank enables
+    ("ADDR_BANK0<8:0>", "0"),
+    ("ADDR_BANK1<8:0>", "0"),
+    ("ADDR_BANK2<8:0>", "0"),
+    ("ADDR_BANK3<8:0>", "0"),
+    ("CIMA_BANK0_EN", "0"),
+    ("CIMA_BANK1_EN", "0"),
+    ("CIMA_BANK2_EN", "0"),
+    ("CIMA_BANK3_EN", "0"),
+
+    # ACT calibration controls
+    ("ACT_CAL_CTRL1<11:0>", "1536"),
+    ("ACT_CAL_CTRL2<11:0>", "1877"),
+    ("ACT_CAL_CTRL3<11:0>", "2347"),
+    ("ACT_CAL_CTRL4<11:0>", "2688"),
+    ("ACT_CAL_CTRL_RST1<11:0>", "1280"),
+    ("ACT_CAL_CTRL_RST2<11:0>", "1451"),
+    ("ACT_CAL_CTRL_FLT_RST<11:0>", "2389"),
+
+    # ACT programming controls
+    ("ACT_PROG_CTRL1<7:0>", "93"),
+    ("ACT_PROG_CTRL2<7:0>", "108"),
+    ("ACT_PROG_CTRL3<7:0>", "115"),
+    ("ACT_PROG_CTRL4<7:0>", "122"),
+    ("ACT_PROG_CTRL_RST1<7:0>", "85"),
+    ("ACT_PROG_CTRL_RST2<7:0>", "84"),
+    ("ACT_PROG_CTRL_FLT_RST<7:0>", "115"),
+    ("ACT_PROG_CTRL_SPARE<19>", "0"),
+    ("ACT_PROG_CTRL_SPARE<18:16>", "0"),
+    ("ACT_PROG_CTRL_SPARE<15>", "0"),
+    ("ACT_PROG_CTRL_SPARE<14>", "0"),
+    ("ACT_PROG_CTRL_SPARE<13>", "0"),
+    ("ACT_PROG_CTRL_SPARE<12>", "0"),
+    ("ACT_PROG_CTRL_SPARE<11>", "0"),
+    ("ACT_PROG_CTRL_SPARE<10>", "0"),
+    ("ACT_PROG_CTRL_SPARE<9>", "0"),
+    ("ACT_PROG_CTRL_SPARE<8:6>", "4"),
+    ("ACT_PROG_CTRL_SPARE<5>", "0"),
+    ("ACT_PROG_CTRL_SPARE<4>", "1"),
+    ("ACT_PROG_CTRL_SPARE<3>", "1"),
+    ("ACT_PROG_CTRL_SPARE<2:0>", "3"),
+
+    # COM
+    ("ACT_PROG_COM<9>", "0"),
+    ("ACT_PROG_COM<8:5>", "15"),
+    ("ACT_PROG_COM<4>", "0"),
+    ("ACT_PROG_COM<3>", "0"),
+    ("ACT_PROG_COM<2:0>", "3"),
+
+    # Misc config
+    ("DMUX_CTRL<4:0>", "0"),
+    ("D_FLT_RST_RISE<2:0>", "1"),
+    ("D_FLT_RST_FALL<2:0>", "5"),
+    ("D_FLT_RST_GAP<1:0>", "1"),
+    ("D_RST_EVAL_GAP<1:0>", "2"),
+    ("D_EVAL_PW<1:0>", "1"),
+    ("D_ADC_SMPL_PW<2:0>", "2"),
+    ("D_AZ_RISE<2:0>", "0"),
+    ("D_AZ_PW<2:0>", "0"),
+
+    # IA bits and mask
+    ("IA_BIT0<575:0>", "0"),
+    ("IA_BIT1<575:0>", "0"),
+    ("IA_BIT2<575:0>", "0"),
+    ("IA_BIT3<575:0>", "0"),
+    ("MASK_B<17:0>", "0"),
+
+    # ADC and CIMA resets/enables
+    ("ADC_CH_EN<63:0>", "0"),
+    ("ADC_PWR_MODE<1:0>", "0"),
+    ("ADC_TMSB_CTRL<2:0>", "3"),
+    ("ADC_TDAC_CTRL<2:0>", "3"),
+    ("ADC_INTR_RSTB", "0"),
+    ("ADC_INTR_ASYNC_RSTB", "0"),
+    ("CIMA_RSTB", "0"),
+    ("CIMA_ASYNC_RSTB", "0"),
+    ("CIMA_BLWL_RSTB", "0"),
+    ("CIMA_BLWL_ASYNC_RSTB", "0"),
+
+    # Starts and DCDL
+    ("STARTCAL", "0"),
+    ("CAL_DONE", "0"),
+    ("START", "0"),
+    ("DCDL_CTRL_EXT<9:0>", "512"),
+    ("DCDL_OVERIDE_EN", "0"),
+
+    # References and bias
+    ("VREF_CAL_CTRL<7:0>", "128"),
+    ("VREF_SCALE_CTRL<1:0>", "0"),
+    ("BG_TRIM<3:0>", "8"),
+    ("CIMA_BIAS_CTRL<3:0>", "0"),
+    ("CIMA_BIAS_PD", "0"),
+
+    # TScore
+    ("EN_TP_TSCORE", "0"),
+    ("PDB_VBG_TSCORE", "0"),
+    ("RSTB_VBG_TSCORE", "0"),
+
+    # ATP and HADC controls
+    ("EN_TP_ATP", "0"),
+    ("ATP_MUX_CTRL<5:0>", "0"),
+    ("ACT_TSTMUX_CTRL<6:0>", "0"),
+    ("HADC_CTRL_CPRE<1:0>", "2"),
+    ("HADC_CURR_CPRE<1:0>", "1"),
+    ("HADC_TDLY_CPRE<2:0>", "4"),
+    ("HADC_TDAC_CPRE<2:0>", "7"),
+    ("HADC_TMSB_CPRE<2:0>", "7"),
+    ("HADC_CTRL_GAIN<1:0>", "1"),
+    ("HADC_CTRL_VCM2<1:0>", "2"),
+    ("HADC_EN", "0"),
+    ("HADC_STROBE", "0"),
+    ("HADC_VALID", "0"),
+    ("HADC<7:0>", "0"),
+
+    # ANA_GEN_SPAREs
+    ("ANA_GEN_SPARE<31>", "0"),
+    ("ANA_GEN_SPARE<30>", "0"),
+    ("ANA_GEN_SPARE<29>", "0"),
+    ("ANA_GEN_SPARE<28>", "0"),
+    ("ANA_GEN_SPARE<27:22>", "0"),
+    ("ANA_GEN_SPARE<21>", "0"),
+    ("ANA_GEN_SPARE<20:10>", "0"),
+    ("ANA_GEN_SPARE<9>", "0"),
+    ("ANA_GEN_SPARE<8>", "0"),
+    ("ANA_GEN_SPARE<7>", "0"),
+    ("ANA_GEN_SPARE<6:1>", "0"),
+    ("ANA_GEN_SPARE<0>", "0"),
+
+    # ADC outputs
+    ("ADCX_OUT<8:0>", "0"),
+    ("ADC_VALID", "0"),
+]
+
 # ---------- Tabs ----------
 
 class AnalogTab(QtWidgets.QWidget):
@@ -345,12 +497,65 @@ class CimaTab(AnalogTab):
             self.write_all_btn.setEnabled(True)
             return
 
-        if re.match(r"^64'h[0-9A-Fa-f_]{1,19}$", mask_text):
+        # Accept forms like: 64'hFFFF_FFFF_FFFF_FFFF or 0xFFFF... or plain hex up to 16 nibbles
+        if (re.match(r"^64'h[0-9A-Fa-f_]{1,19}$", mask_text)
+            or re.match(r"^0x[0-9A-Fa-f_]{1,16}$", mask_text)
+            or re.match(r"^[0-9A-Fa-f_]{1,16}$", mask_text)):
             self.mask_error.hide()
             self.write_all_btn.setEnabled(True)
         else:
             self.mask_error.show()
             self.write_all_btn.setEnabled(False)
+
+    # Helpers to parse mask or index
+    def _parsed_cima_mask(self) -> int:
+        text = (self.cima_mask.text() or "").strip().replace("_", "")
+        if not text:
+            return 0
+        if text.startswith("64'h"):
+            text = text[4:]
+        elif text.startswith("0x"):
+            text = text[2:]
+        try:
+            value = int(text, 16)
+        except Exception:
+            value = 0
+        return value & ((1 << 64) - 1)
+
+    def _active_cima_mask(self) -> int:
+        mask = self._parsed_cima_mask()
+        if mask:
+            return mask
+        idx = int(self.cima_index.value())
+        return 1 << idx
+
+    def on_write_all(self):
+        targets = self._active_cima_mask()
+        wrote = []
+        for r in range(self.table.rowCount()):
+            editor = self.table.cellWidget(r, 2)  # ClearLineEdit
+            value = editor.text() if isinstance(editor, QtWidgets.QLineEdit) else ""
+            port_name = self.table.item(r, 0).text()
+            wrote.append((port_name, value))
+        # Summary dialog
+        num = bin(targets).count("1")
+        QtWidgets.QMessageBox.information(
+            self,
+            "Write All",
+            f"[{self.title}] Write {len(wrote)} ports to {num} CIMA(s).\nMask = 0x{targets:016X}"
+        )
+
+    def on_write_single(self, row: int):
+        port_name = self.table.item(row, 0).text()
+        editor = self.table.cellWidget(row, 2)  # ClearLineEdit
+        value = editor.text() if isinstance(editor, QtWidgets.QLineEdit) else ""
+        mask = self._active_cima_mask()
+        num = bin(mask).count("1")
+        QtWidgets.QMessageBox.information(
+            self,
+            "Write Single",
+            f"[{self.title}] {port_name} = {value} → {num} CIMA(s).\nMask = 0x{mask:016X}"
+        )
 
 
 class CimaMvmTab(QtWidgets.QWidget):
@@ -561,7 +766,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tab_buck0 = AnalogTab("BUCK0", BUCK_ALL_REGISTERS)
         self.tab_buck1 = AnalogTab("BUCK1", BUCK_ALL_REGISTERS)
-        self.tab_cima = CimaTab("CIMA")
+        self.tab_cima = CimaTab("CIMA", CIMA_REGISTERS)
         self.tab_cima_mvm = CimaMvmTab()
         self.tab_board = AnalogTab("Board")
         self.tab_functions = AnalogTab("Functions")
