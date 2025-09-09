@@ -74,7 +74,6 @@ class BadgeLabel(QtWidgets.QLabel):
 
 # BUCK_TOP instance registers (for both BUCK0 and BUCK1)
 BUCK_TOP_REGISTERS = [
-    ("BUCK_CLK_1G", "0"),
     ("BUCK_RSTB", "0"),
     ("BUCK_ASYNC_RSTB", "0"),
     ("BUCK_CLK_SEL<2:0>", "0"),
@@ -125,31 +124,18 @@ PORTS_SAMPLE = [
 # ---------- CIMA IO Register List (filtered) ----------
 # Kept only Data/Config/Control; skipped SCAN_*, supplies (DVDD/AVDD*/DVSS/AGND), signals, and CLKs
 CIMA_REGISTERS = [
-    # Data banks
-    ("DATA_WR_BANK0<127:0>", "0"),
-    ("DATA_WR_BANK1<127:0>", "0"),
-    ("DATA_WR_BANK2<127:0>", "0"),
-    ("DATA_WR_BANK3<127:0>", "0"),
+    # Data banks (read-only placeholders retained where applicable)
     ("DATA_RD_BANK0<127:0>", "0"),
     ("DATA_RD_BANK1<127:0>", "0"),
     ("DATA_RD_BANK2<127:0>", "0"),
     ("DATA_RD_BANK3<127:0>", "0"),
-    ("CIMA_WR_RDB", "0"),
     ("MEM_CH_FAULT<67:0>", "0"),
 
     # Wordline controls
     ("WL_WID_CTRL<3:0>", "8"),
     ("WL_DLY_CTRL<3:0>", "8"),
 
-    # Address and bank enables
-    ("ADDR_BANK0<8:0>", "0"),
-    ("ADDR_BANK1<8:0>", "0"),
-    ("ADDR_BANK2<8:0>", "0"),
-    ("ADDR_BANK3<8:0>", "0"),
-    ("CIMA_BANK0_EN", "0"),
-    ("CIMA_BANK1_EN", "0"),
-    ("CIMA_BANK2_EN", "0"),
-    ("CIMA_BANK3_EN", "0"),
+    # (ADDR_BANK* and CIMA_BANK*_EN removed: not controlled by register)
 
     # ACT calibration controls
     ("ACT_CAL_CTRL1<11:0>", "1536"),
@@ -201,15 +187,9 @@ CIMA_REGISTERS = [
     ("D_AZ_RISE<2:0>", "0"),
     ("D_AZ_PW<2:0>", "0"),
 
-    # IA bits and mask
-    ("IA_BIT0<575:0>", "0"),
-    ("IA_BIT1<575:0>", "0"),
-    ("IA_BIT2<575:0>", "0"),
-    ("IA_BIT3<575:0>", "0"),
-    ("MASK_B<17:0>", "0"),
+    # (IA_BIT*, MASK_B removed: not controlled by CWRAP register)
 
-    # ADC and CIMA resets/enables
-    ("ADC_CH_EN<63:0>", "0"),
+    # ADC and CIMA resets/enables (ADC_CH_EN removed: not controlled by CWRAP)
     ("ADC_PWR_MODE<1:0>", "0"),
     ("ADC_TMSB_CTRL<2:0>", "3"),
     ("ADC_TDAC_CTRL<2:0>", "3"),
@@ -223,11 +203,12 @@ CIMA_REGISTERS = [
     # Starts and DCDL
     ("STARTCAL", "0"),
     ("CAL_DONE", "0"),
-    ("START", "0"),
+    # (START removed: not controlled by CWRAP)
     ("DCDL_CTRL_EXT<9:0>", "512"),
-    ("DCDL_OVERIDE_EN", "0"),
+    # (DCDL_OVERRIDE_EN removed: deprecated)
 
     # References and bias
+    ("CLK_SEL<2:0>", "0"),
     ("VREF_CAL_CTRL<7:0>", "128"),
     ("VREF_SCALE_CTRL<1:0>", "0"),
     ("BG_TRIM<3:0>", "8"),
@@ -323,7 +304,19 @@ class AnalogTab(QtWidgets.QWidget):
         shadow.setColor(QtGui.QColor(0, 0, 0, 180))
         self.table.setGraphicsEffect(shadow)
 
+        # Determine tab-specific output-only fields to disable writes per-row
+        is_buck_tab = str(self.title).upper().startswith("BUCK")
+        is_cima_tab = str(self.title).upper() == "CIMA"
+        buck_output_only_ports = {"BUCK_HADC_VALID", "BUCK_HADC_OUT<7:0>"} if is_buck_tab else set()
+        cima_output_only_ports = {"CAL_DONE", "HADC_VALID", "HADC<7:0>", "ADCX_OUT<8:0>", "ADC_VALID"} if is_cima_tab else set()
+        # Note: ADCX_OUT requires special read behavior (reads 64 pairs of CWRAP_TF_REGs)
+        cima_note_ports = {"ADCX_OUT<8:0>"} if is_cima_tab else set()
+        self._output_only_rows = set()
+
         for row, (port_name, default_value) in enumerate(ports_data):
+            is_output_only = (port_name in buck_output_only_ports) or (port_name in cima_output_only_ports)
+            if is_output_only:
+                self._output_only_rows.add(row)
             # Port
             name_item = QtWidgets.QTableWidgetItem(port_name)
             name_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft)
@@ -334,11 +327,16 @@ class AnalogTab(QtWidgets.QWidget):
             current_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row, 1, current_item)
 
-            # Write Value (editable)
-            write_editor = ClearLineEdit(placeholder="enter value", align_center=True)
-            write_editor.setMinimumHeight(26)               # <-- add height
-            write_editor.setTextMargins(6, 0, 6, 0)         # <-- inner padding
-            self.table.setCellWidget(row, 2, write_editor)
+            # Write Value (editable unless output-only field)
+            if is_output_only:
+                disabled_item = QtWidgets.QTableWidgetItem("—")
+                disabled_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(row, 2, disabled_item)
+            else:
+                write_editor = ClearLineEdit(placeholder="enter value", align_center=True)
+                write_editor.setMinimumHeight(26)               # <-- add height
+                write_editor.setTextMargins(6, 0, 6, 0)         # <-- inner padding
+                self.table.setCellWidget(row, 2, write_editor)
 
             # Default value label (centered with inner padding)
             default_lbl = BadgeLabel(default_value)
@@ -370,29 +368,37 @@ class AnalogTab(QtWidgets.QWidget):
             layout_read.addStretch(1)
             layout_read.addWidget(read_btn)
             layout_read.addStretch(1)
+            # Add helpful note for CIMA ADCX_OUT row
+            if is_cima_tab and (port_name in cima_note_ports):
+                read_btn.setToolTip("Requires reading CWRAP_TF_REGs (64 pairs). Will populate all 64 ADCX_OUT<8:0> at once.")
             # Keep read cell plain to avoid halo around button
             # container_read.setObjectName("cellBox")
             self.table.setCellWidget(row, 4, container_read)
 
-            # Individual Write button
-            write_btn = QtWidgets.QPushButton("Write")
-            write_btn.setProperty("kind", "primary")
-            write_btn.setProperty("size", "small")
-            write_btn.setFixedWidth(75)
-            write_btn.setFixedHeight(26)
-            write_btn.setFlat(False)
-            write_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
-            write_btn.clicked.connect(lambda checked, r=row: self.on_write_single(r))
-            container_write = QtWidgets.QWidget()
-            layout_write = QtWidgets.QHBoxLayout(container_write)
-            layout_write.setContentsMargins(6, 0, 6, 0)
-            layout_write.setSpacing(0)
-            layout_write.addStretch(1)
-            layout_write.addWidget(write_btn)
-            layout_write.addStretch(1)
-            # Keep write cell plain to avoid halo around button
-            # container_write.setObjectName("cellBox")
-            self.table.setCellWidget(row, 5, container_write)
+            # Individual Write button (omit for output-only fields)
+            if is_output_only:
+                placeholder_item = QtWidgets.QTableWidgetItem("")
+                placeholder_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(row, 5, placeholder_item)
+            else:
+                write_btn = QtWidgets.QPushButton("Write")
+                write_btn.setProperty("kind", "primary")
+                write_btn.setProperty("size", "small")
+                write_btn.setFixedWidth(75)
+                write_btn.setFixedHeight(26)
+                write_btn.setFlat(False)
+                write_btn.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+                write_btn.clicked.connect(lambda checked, r=row: self.on_write_single(r))
+                container_write = QtWidgets.QWidget()
+                layout_write = QtWidgets.QHBoxLayout(container_write)
+                layout_write.setContentsMargins(6, 0, 6, 0)
+                layout_write.setSpacing(0)
+                layout_write.addStretch(1)
+                layout_write.addWidget(write_btn)
+                layout_write.addStretch(1)
+                # Keep write cell plain to avoid halo around button
+                # container_write.setObjectName("cellBox")
+                self.table.setCellWidget(row, 5, container_write)
 
         header_view = self.table.horizontalHeader()
         header_view.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
@@ -435,6 +441,9 @@ class AnalogTab(QtWidgets.QWidget):
 
     def on_write_all(self):
         for r in range(self.table.rowCount()):
+            # Skip output-only rows (e.g., BUCK_HADC_VALID, BUCK_HADC_OUT<7:0>)
+            if hasattr(self, "_output_only_rows") and r in getattr(self, "_output_only_rows", set()):
+                continue
             editor = self.table.cellWidget(r, 2)  # ClearLineEdit
             value = editor.text() if isinstance(editor, QtWidgets.QLineEdit) else ""
             # No longer updating desired column since it's removed
@@ -446,6 +455,15 @@ class AnalogTab(QtWidgets.QWidget):
     def on_read_single(self, row: int):
         """Handle individual read button click for a specific row."""
         port_name = self.table.item(row, 0).text()
+        # Special handling for CIMA ADCX_OUT: requires reading 64 CWRAP_TF_REG pairs
+        if str(self.title).upper() == "CIMA" and port_name == "ADCX_OUT<8:0>":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Read ADCX_OUT",
+                "Requires reading CWRAP_TF_REGs (64 pairs).\nPlaceholder: would populate all 64 ADCX_OUT<8:0> values."
+            )
+            self.table.item(row, 1).setText("pending 64x")
+            return
         self.table.item(row, 1).setText("N/A")  # Update current value
         QtWidgets.QMessageBox.information(self, "Read Single", f"[{self.title}] Read {port_name} (frontend only).")
 
