@@ -264,6 +264,68 @@ class AnalogTab(QtWidgets.QWidget):
         self.ports = ports or PORTS_SAMPLE
         self._build_ui()
 
+    def _on_filter_all_toggled(self, checked: bool):
+        # When All is toggled, set all individual types to the same state
+        if not hasattr(self, "_function_filter_checkboxes"):
+            return
+        for cb in self._function_filter_checkboxes.values():
+            # Avoid recursive loops: block signals while setting
+            old_state = cb.blockSignals(True)
+            cb.setChecked(checked)
+            cb.blockSignals(old_state)
+        self._apply_function_filter()
+
+    def _on_filter_type_toggled(self, _checked: bool):
+        # Update All checkbox tristate behavior and apply filter
+        if not hasattr(self, "_function_filter_checkboxes"):
+            return
+        states = [cb.isChecked() for cb in self._function_filter_checkboxes.values()]
+        if hasattr(self, "_filter_all_checkbox"):
+            any_on = any(states)
+            all_on = all(states)
+            old_state = self._filter_all_checkbox.blockSignals(True)
+            self._filter_all_checkbox.setChecked(all_on)
+            # Use partially-checked visual if some but not all are selected
+            self._filter_all_checkbox.setTristate(True)
+            self._filter_all_checkbox.setCheckState(
+                QtCore.Qt.CheckState.PartiallyChecked if (any_on and not all_on) else (
+                    QtCore.Qt.CheckState.Checked if all_on else QtCore.Qt.CheckState.Unchecked
+                )
+            )
+            self._filter_all_checkbox.blockSignals(old_state)
+        self._apply_function_filter()
+
+    def _apply_function_filter(self):
+        # Hide/show rows based on selected function kinds
+        if not hasattr(self, "_row_function_kind"):
+            return
+        # Build allowed kinds
+        allowed = set()
+        if hasattr(self, "_function_filter_checkboxes"):
+            for kind, cb in self._function_filter_checkboxes.items():
+                if cb.isChecked():
+                    allowed.add(kind)
+        # Also apply text search filter if present
+        search_text = ""
+        if hasattr(self, "_filter_search_edit"):
+            search_text = self._filter_search_edit.text().strip().lower()
+        # If none selected, show nothing
+        for row, kind in self._row_function_kind.items():
+            show_kind = (kind in allowed) if allowed else False
+            if show_kind and search_text:
+                # match on port name or function text
+                try:
+                    port_name = self.table.item(row, self._columns["port"]).text()
+                except Exception:
+                    port_name = ""
+                func_text = kind
+                match = (search_text in port_name.lower()) or (search_text in func_text.lower())
+                show_kind = show_kind and match
+            self.table.setRowHidden(row, not show_kind)
+
+    def _on_search_changed(self, _text: str):
+        self._apply_function_filter()
+
     def _build_ui(self):
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(16, 16, 16, 16)
@@ -309,6 +371,38 @@ class AnalogTab(QtWidgets.QWidget):
         shadow.setOffset(0, 2)
         shadow.setColor(QtGui.QColor(0, 0, 0, 180))
         self.table.setGraphicsEffect(shadow)
+
+        # Function filter bar (only for CIMA and BUCK tabs)
+        if is_cima_tab or is_buck_tab:
+            self._function_filter_checkboxes = {}
+            self._filter_all_checkbox = QtWidgets.QCheckBox("All")
+            self._filter_all_checkbox.setChecked(True)
+            self._filter_all_checkbox.toggled.connect(self._on_filter_all_toggled)
+
+            filter_layout = QtWidgets.QHBoxLayout()
+            filter_layout.addWidget(QtWidgets.QLabel("Filter:"))
+            filter_layout.addSpacing(6)
+            filter_layout.addWidget(self._filter_all_checkbox)
+            for kind in ["Control", "Config", "Data", "Clock", "Signal", "Supply"]:
+                cb = QtWidgets.QCheckBox(kind)
+                cb.setChecked(True)
+                cb.toggled.connect(self._on_filter_type_toggled)
+                self._function_filter_checkboxes[kind] = cb
+                filter_layout.addWidget(cb)
+            filter_layout.addStretch(1)
+
+            # Search field (live filter by port/function)
+            self._filter_search_edit = ClearLineEdit(placeholder="Search registers…", align_center=False)
+            try:
+                self._filter_search_edit.setClearButtonEnabled(True)
+            except Exception:
+                pass
+            self._filter_search_edit.setFixedWidth(240)
+            self._filter_search_edit.textChanged.connect(self._on_search_changed)
+            filter_layout.addWidget(self._filter_search_edit)
+
+            # Place just under the section header (index 1)
+            outer.insertLayout(1, filter_layout)
 
         # Determine tab-specific output-only fields to disable writes per-row
         # Column indices mapping (differs when Function column is present)
@@ -551,6 +645,24 @@ class AnalogTab(QtWidgets.QWidget):
             }
             return mapping.get(name, "Config")
 
+        # For CIMA and BUCK tabs, group rows by Function and sort within groups by Port name
+        if has_function_col:
+            function_order = {
+                "Control": 0,
+                "Config": 1,
+                "Data": 2,
+                "Clock": 3,
+                "Signal": 4,
+                "Supply": 5,
+            }
+
+            def _sort_key(entry: tuple) -> tuple:
+                port_name, _default_val = entry
+                func = _classify_function(port_name)
+                return (function_order.get(func, 999), port_name)
+
+            ports_data = sorted(ports_data, key=_sort_key)
+
         # Recompute flags (already computed above)
         buck_output_only_ports = {"BUCK_HADC_VALID", "BUCK_HADC_OUT<7:0>"} if is_buck_tab else set()
         cima_output_only_ports = {"CAL_DONE", "HADC_VALID", "HADC<7:0>", "ADCX_OUT<8:0>", "ADC_VALID"} if is_cima_tab else set()
@@ -562,6 +674,12 @@ class AnalogTab(QtWidgets.QWidget):
             is_output_only = (port_name in buck_output_only_ports) or (port_name in cima_output_only_ports)
             if is_output_only:
                 self._output_only_rows.add(row)
+            # Cache function kind for filtering
+            if has_function_col:
+                # Build a per-row map of function kinds
+                if not hasattr(self, "_row_function_kind"):
+                    self._row_function_kind = {}
+                self._row_function_kind[row] = _classify_function(port_name)
             # Port
             name_item = QtWidgets.QTableWidgetItem(port_name)
             name_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft)
