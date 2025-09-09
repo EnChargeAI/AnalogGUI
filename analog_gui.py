@@ -285,9 +285,14 @@ class AnalogTab(QtWidgets.QWidget):
             port_names = self.ports
             default_values = ["N/A"] * len(self.ports)
 
-        self.table = QtWidgets.QTableWidget(len(ports_data), 6, self)
+        # Add a Function column for CIMA only
+        is_cima_tab = str(self.title).upper() == "CIMA"
+        headers = ["Port", "Current", "Write Value", "Default", "Read", "Write"]
+        if is_cima_tab:
+            headers = ["Port", "Function", "Current", "Write Value", "Default", "Read", "Write"]
+        self.table = QtWidgets.QTableWidget(len(ports_data), len(headers), self)
         self.table.setObjectName("portsTable")
-        self.table.setHorizontalHeaderLabels(["Port", "Current", "Write Value", "Default", "Read", "Write"])
+        self.table.setHorizontalHeaderLabels(headers)
         self.table.verticalHeader().setVisible(False)
         vh = self.table.verticalHeader()
         vh.setDefaultSectionSize(42)          # taller rows to enlarge surrounding boxes
@@ -306,6 +311,183 @@ class AnalogTab(QtWidgets.QWidget):
 
         # Determine tab-specific output-only fields to disable writes per-row
         is_buck_tab = str(self.title).upper().startswith("BUCK")
+        # Column indices mapping (differs for CIMA vs others)
+        if is_cima_tab:
+            self._columns = {
+                "port": 0,
+                "function": 1,
+                "current": 2,
+                "write_val": 3,
+                "default": 4,
+                "read": 5,
+                "write": 6,
+            }
+        else:
+            self._columns = {
+                "port": 0,
+                "function": None,
+                "current": 1,
+                "write_val": 2,
+                "default": 3,
+                "read": 4,
+                "write": 5,
+            }
+
+        # Simple function classifier for CIMA entries
+        def _classify_function(name: str) -> str:
+            mapping = {
+                # Clocks
+                "CLK_ADC_1G": "Clock",
+                "CLK_MVM_1G": "Clock",
+                "CLK_BLRDWR_1G": "Clock",
+                # Config
+                "CLK_SEL<2:0>": "Config",
+                "WL_WID_CTRL<3:0>": "Config",
+                "WL_DLY_CTRL<3:0>": "Config",
+                "ACT_CAL_CTRL1<11:0>": "Config",
+                "ACT_CAL_CTRL2<11:0>": "Config",
+                "ACT_CAL_CTRL3<11:0>": "Config",
+                "ACT_CAL_CTRL4<11:0>": "Config",
+                "ACT_CAL_CTRL_RST1<11:0>": "Config",
+                "ACT_CAL_CTRL_RST2<11:0>": "Config",
+                "ACT_CAL_CTRL_FLT_RST<11:0>": "Config",
+                "ACT_PROG_CTRL1<7:0>": "Config",
+                "ACT_PROG_CTRL2<7:0>": "Config",
+                "ACT_PROG_CTRL3<7:0>": "Config",
+                "ACT_PROG_CTRL4<7:0>": "Config",
+                "ACT_PROG_CTRL_RST1<7:0>": "Config",
+                "ACT_PROG_CTRL_RST2<7:0>": "Config",
+                "ACT_PROG_CTRL_FLT_RST<7:0>": "Config",
+                "ACT_PROG_CTRL_SPARE<19>": "Config",
+                "ACT_PROG_CTRL_SPARE<18:16>": "Config",
+                "ACT_PROG_CTRL_SPARE<15>": "Config",
+                "ACT_PROG_CTRL_SPARE<14>": "Config",
+                "ACT_PROG_CTRL_SPARE<12>": "Config",
+                "ACT_PROG_CTRL_SPARE<11>": "Config",
+                "ACT_PROG_CTRL_SPARE<10>": "Config",
+                "ACT_PROG_CTRL_SPARE<9>": "Config",
+                "ACT_PROG_CTRL_SPARE<8:6>": "Config",
+                "ACT_PROG_CTRL_SPARE<5>": "Config",
+                "ACT_PROG_CTRL_SPARE<4>": "Config",
+                "ACT_PROG_CTRL_SPARE<3>": "Config",
+                "ACT_PROG_CTRL_SPARE<2:0>": "Config",
+                "ACT_PROG_COM<9>": "Config",
+                "ACT_PROG_COM<8:5>": "Config",
+                "ACT_PROG_COM<4>": "Config",
+                "ACT_PROG_COM<3>": "Config",
+                "ACT_PROG_COM<2:0>": "Config",
+                "DMUX_CTRL<4:0>": "Config",
+                "D_FLT_RST_RISE<2:0>": "Config",
+                "D_FLT_RST_FALL<2:0>": "Config",
+                "D_FLT_RST_GAP<1:0>": "Config",
+                "D_RST_EVAL_GAP<1:0>": "Config",
+                "D_EVAL_PW<1:0>": "Config",
+                "D_ADC_SMPL_PW<2:0>": "Config",
+                "D_AZ_RISE<2:0>": "Config",
+                "D_AZ_PW<2:0>": "Config",
+                "ADC_PWR_MODE<1:0>": "Config",
+                "ADC_TMSB_CTRL<2:0>": "Config",
+                "ADC_TDAC_CTRL<2:0>": "Config",
+                "DCDL_CTRL_EXT<9:0>": "Config",
+                "VREF_CAL_CTRL<7:0>": "Config",
+                "VREF_SCALE_CTRL<1:0>": "Config",
+                "BG_TRIM<3:0>": "Config",
+                "CIMA_BIAS_CTRL<3:0>": "Config",
+                "CIMA_BIAS_PD": "Config",
+                "EN_TP_TSCORE": "Config",
+                "PDB_VBG_TSCORE": "Config",
+                "RSTB_VBG_TSCORE": "Config",
+                "HADC_CTRL_CPRE<1:0>": "Config",
+                "HADC_CURR_CPRE<1:0>": "Config",
+                "HADC_TDLY_CPRE<2:0>": "Config",
+                "HADC_TDAC_CPRE<2:0>": "Config",
+                "HADC_TMSB_CPRE<2:0>": "Config",
+                "HADC_CTRL_GAIN<1:0>": "Config",
+                "HADC_CTRL_VCM2<1:0>": "Config",
+                "CAL_DONE": "Config",
+                "ANA_GEN_SPARE<31>": "Config",
+                "ANA_GEN_SPARE<30>": "Config",
+                "ANA_GEN_SPARE<29>": "Config",
+                "ANA_GEN_SPARE<28>": "Config",
+                "ANA_GEN_SPARE<27:22>": "Config",
+                "ANA_GEN_SPARE<21>": "Config",
+                "ANA_GEN_SPARE<20:10>": "Config",
+                "ANA_GEN_SPARE<9>": "Config",
+                "ANA_GEN_SPARE<8>": "Config",
+                "ANA_GEN_SPARE<7>": "Config",
+                "ANA_GEN_SPARE<6:1>": "Config",
+                "ANA_GEN_SPARE<0>": "Config",
+                # Data
+                "DATA_WR_BANK0<127:0>": "Data",
+                "DATA_WR_BANK1<127:0>": "Data",
+                "DATA_WR_BANK2<127:0>": "Data",
+                "DATA_WR_BANK3<127:0>": "Data",
+                "DATA_RD_BANK0<127:0>": "Data",
+                "DATA_RD_BANK1<127:0>": "Data",
+                "DATA_RD_BANK2<127:0>": "Data",
+                "DATA_RD_BANK3<127:0>": "Data",
+                "ADDR_BANK0<8:0>": "Data",
+                "ADDR_BANK1<8:0>": "Data",
+                "ADDR_BANK2<8:0>": "Data",
+                "ADDR_BANK3<8:0>": "Data",
+                "IA_BIT0<575:0>": "Data",
+                "IA_BIT1<575:0>": "Data",
+                "IA_BIT2<575:0>": "Data",
+                "IA_BIT3<575:0>": "Data",
+                "HADC_VALID": "Data",
+                "HADC<7:0>": "Data",
+                "ADCX_OUT<8:0>": "Data",
+                "ADC_VALID": "Data",
+                "SCAN_IN_A<5:0>": "Data",
+                "SCAN_OUT_A<5:0>": "Data",
+                "SCAN_IN_B<2:0>": "Data",
+                "SCAN_OUT_B<2:0>": "Data",
+                "SCAN_IN_C": "Data",
+                "SCAN_OUT_C": "Data",
+                # Control
+                "CIMA_WR_RDB": "Control",
+                "MEM_CH_FAULT<67:0>": "Control",
+                "CIMA_BANK0_EN": "Control",
+                "CIMA_BANK1_EN": "Control",
+                "CIMA_BANK2_EN": "Control",
+                "CIMA_BANK3_EN": "Control",
+                "ACT_PROG_CTRL_SPARE<13>": "Control",
+                "ADC_CH_EN<63:0>": "Control",
+                "ADC_INTR_RSTB": "Control",
+                "ADC_INTR_ASYNC_RSTB": "Control",
+                "CIMA_RSTB": "Control",
+                "CIMA_ASYNC_RSTB": "Control",
+                "CIMA_BLWL_RSTB": "Control",
+                "CIMA_BLWL_ASYNC_RSTB": "Control",
+                "STARTCAL": "Control",
+                "START": "Control",
+                "EN_TP_ATP": "Control",
+                "ATP_MUX_CTRL<5:0>": "Control",
+                "ACT_TSTMUX_CTRL<6:0>": "Control",
+                "HADC_EN": "Control",
+                "HADC_STROBE": "Control",
+                "SCAN_MODE_A": "Control",
+                "SCAN_EN_A": "Control",
+                "SCAN_MODE_B": "Control",
+                "SCAN_EN_B": "Control",
+                "SCAN_MODE_C": "Control",
+                "SCAN_EN_C": "Control",
+                # Signal/Supply (not shown in current list but kept for completeness)
+                "CIMA_ATP": "Signal",
+                "DVDD": "Supply",
+                "AVDD_BUCKH": "Signal",
+                "AVDD_BUCKL": "Signal",
+                "AVDD": "Supply",
+                "AVDD_ADC": "Supply",
+                "AVDD_MEM": "Supply",
+                "AVDD18": "Supply",
+                "DVSS": "Supply",
+                "AGND": "Supply",
+                "DCDL_OVERIDE_EN": "Config",
+            }
+            return mapping.get(name, "Config")
+
+        # Recompute flag here for completeness (already computed above)
         is_cima_tab = str(self.title).upper() == "CIMA"
         buck_output_only_ports = {"BUCK_HADC_VALID", "BUCK_HADC_OUT<7:0>"} if is_buck_tab else set()
         cima_output_only_ports = {"CAL_DONE", "HADC_VALID", "HADC<7:0>", "ADCX_OUT<8:0>", "ADC_VALID"} if is_cima_tab else set()
@@ -320,23 +502,29 @@ class AnalogTab(QtWidgets.QWidget):
             # Port
             name_item = QtWidgets.QTableWidgetItem(port_name)
             name_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft)
-            self.table.setItem(row, 0, name_item)
+            self.table.setItem(row, self._columns["port"], name_item)
+
+            # Function column (CIMA only)
+            if is_cima_tab and self._columns["function"] is not None:
+                func_item = QtWidgets.QTableWidgetItem(_classify_function(port_name))
+                func_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(row, self._columns["function"], func_item)
 
             # Current
             current_item = QtWidgets.QTableWidgetItem("N/A")
             current_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(row, 1, current_item)
+            self.table.setItem(row, self._columns["current"], current_item)
 
             # Write Value (editable unless output-only field)
             if is_output_only:
                 disabled_item = QtWidgets.QTableWidgetItem("—")
                 disabled_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-                self.table.setItem(row, 2, disabled_item)
+                self.table.setItem(row, self._columns["write_val"], disabled_item)
             else:
                 write_editor = ClearLineEdit(placeholder="enter value", align_center=True)
                 write_editor.setMinimumHeight(26)               # <-- add height
                 write_editor.setTextMargins(6, 0, 6, 0)         # <-- inner padding
-                self.table.setCellWidget(row, 2, write_editor)
+                self.table.setCellWidget(row, self._columns["write_val"], write_editor)
 
             # Default value label (centered with inner padding)
             default_lbl = BadgeLabel(default_value)
@@ -349,7 +537,7 @@ class AnalogTab(QtWidgets.QWidget):
             default_layout.addWidget(default_lbl)
             default_layout.addStretch(1)
             default_container.setObjectName("cellBox")
-            self.table.setCellWidget(row, 3, default_container)
+            self.table.setCellWidget(row, self._columns["default"], default_container)
 
             # Individual Read button
             read_btn = QtWidgets.QPushButton("Read")
@@ -373,13 +561,13 @@ class AnalogTab(QtWidgets.QWidget):
                 read_btn.setToolTip("Requires reading CWRAP_TF_REGs (64 pairs). Will populate all 64 ADCX_OUT<8:0> at once.")
             # Keep read cell plain to avoid halo around button
             # container_read.setObjectName("cellBox")
-            self.table.setCellWidget(row, 4, container_read)
+            self.table.setCellWidget(row, self._columns["read"], container_read)
 
             # Individual Write button (omit for output-only fields)
             if is_output_only:
                 placeholder_item = QtWidgets.QTableWidgetItem("")
                 placeholder_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-                self.table.setItem(row, 5, placeholder_item)
+                self.table.setItem(row, self._columns["write"], placeholder_item)
             else:
                 write_btn = QtWidgets.QPushButton("Write")
                 write_btn.setProperty("kind", "primary")
@@ -398,18 +586,30 @@ class AnalogTab(QtWidgets.QWidget):
                 layout_write.addStretch(1)
                 # Keep write cell plain to avoid halo around button
                 # container_write.setObjectName("cellBox")
-                self.table.setCellWidget(row, 5, container_write)
+                self.table.setCellWidget(row, self._columns["write"], container_write)
 
         header_view = self.table.horizontalHeader()
-        header_view.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
-        header_view.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        header_view.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        header_view.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Fixed)
-        header_view.resizeSection(3, 79)  # Default column box wider
-        header_view.resizeSection(4, 124)  # Read column box wider
-        header_view.resizeSection(5, 124)  # Write column box wider
+        if is_cima_tab:
+            header_view.setSectionResizeMode(self._columns["port"], QtWidgets.QHeaderView.ResizeMode.Stretch)
+            header_view.setSectionResizeMode(self._columns["function"], QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+            header_view.setSectionResizeMode(self._columns["current"], QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+            header_view.setSectionResizeMode(self._columns["write_val"], QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+            header_view.setSectionResizeMode(self._columns["default"], QtWidgets.QHeaderView.ResizeMode.Fixed)
+            header_view.setSectionResizeMode(self._columns["read"], QtWidgets.QHeaderView.ResizeMode.Fixed)
+            header_view.setSectionResizeMode(self._columns["write"], QtWidgets.QHeaderView.ResizeMode.Fixed)
+            header_view.resizeSection(self._columns["default"], 79)
+            header_view.resizeSection(self._columns["read"], 124)
+            header_view.resizeSection(self._columns["write"], 124)
+        else:
+            header_view.setSectionResizeMode(self._columns["port"], QtWidgets.QHeaderView.ResizeMode.Stretch)
+            header_view.setSectionResizeMode(self._columns["current"], QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+            header_view.setSectionResizeMode(self._columns["write_val"], QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+            header_view.setSectionResizeMode(self._columns["default"], QtWidgets.QHeaderView.ResizeMode.Fixed)
+            header_view.setSectionResizeMode(self._columns["read"], QtWidgets.QHeaderView.ResizeMode.Fixed)
+            header_view.setSectionResizeMode(self._columns["write"], QtWidgets.QHeaderView.ResizeMode.Fixed)
+            header_view.resizeSection(self._columns["default"], 79)
+            header_view.resizeSection(self._columns["read"], 124)
+            header_view.resizeSection(self._columns["write"], 124)
 
         outer.addWidget(self.table, stretch=1)
 
@@ -436,7 +636,9 @@ class AnalogTab(QtWidgets.QWidget):
 
     def on_read_all(self):
         for r in range(self.table.rowCount()):
-            self.table.item(r, 1).setText("N/A")
+            # Use dynamic column index for 'Current'
+            col = self._columns["current"] if hasattr(self, "_columns") else 1
+            self.table.item(r, col).setText("N/A")
         QtWidgets.QMessageBox.information(self, "Read All", f"[{self.title}] Read all (frontend only).")
 
     def on_write_all(self):
@@ -454,7 +656,9 @@ class AnalogTab(QtWidgets.QWidget):
 
     def on_read_single(self, row: int):
         """Handle individual read button click for a specific row."""
-        port_name = self.table.item(row, 0).text()
+        col_port = self._columns["port"] if hasattr(self, "_columns") else 0
+        col_current = self._columns["current"] if hasattr(self, "_columns") else 1
+        port_name = self.table.item(row, col_port).text()
         # Special handling for CIMA ADCX_OUT: requires reading 64 CWRAP_TF_REG pairs
         if str(self.title).upper() == "CIMA" and port_name == "ADCX_OUT<8:0>":
             QtWidgets.QMessageBox.information(
@@ -462,15 +666,17 @@ class AnalogTab(QtWidgets.QWidget):
                 "Read ADCX_OUT",
                 "Requires reading CWRAP_TF_REGs (64 pairs).\nPlaceholder: would populate all 64 ADCX_OUT<8:0> values."
             )
-            self.table.item(row, 1).setText("pending 64x")
+            self.table.item(row, col_current).setText("pending 64x")
             return
-        self.table.item(row, 1).setText("N/A")  # Update current value
+        self.table.item(row, col_current).setText("N/A")  # Update current value
         QtWidgets.QMessageBox.information(self, "Read Single", f"[{self.title}] Read {port_name} (frontend only).")
 
     def on_write_single(self, row: int):
         """Handle individual write button click for a specific row."""
-        port_name = self.table.item(row, 0).text()
-        editor = self.table.cellWidget(row, 2)  # ClearLineEdit
+        col_port = self._columns["port"] if hasattr(self, "_columns") else 0
+        col_write_val = self._columns["write_val"] if hasattr(self, "_columns") else 2
+        port_name = self.table.item(row, col_port).text()
+        editor = self.table.cellWidget(row, col_write_val)  # ClearLineEdit
         value = editor.text() if isinstance(editor, QtWidgets.QLineEdit) else ""
         # No longer updating desired column since it's removed
         QtWidgets.QMessageBox.information(self, "Write Single", f"[{self.title}] Wrote {port_name} = {value} (frontend only).")
