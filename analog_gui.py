@@ -285,10 +285,11 @@ class AnalogTab(QtWidgets.QWidget):
             port_names = self.ports
             default_values = ["N/A"] * len(self.ports)
 
-        # Add a Function column for CIMA only
+        # Add a Function column for CIMA and BUCK tabs
         is_cima_tab = str(self.title).upper() == "CIMA"
+        is_buck_tab = str(self.title).upper().startswith("BUCK")
         headers = ["Port", "Current", "Write Value", "Default", "Read", "Write"]
-        if is_cima_tab:
+        if is_cima_tab or is_buck_tab:
             headers = ["Port", "Function", "Current", "Write Value", "Default", "Read", "Write"]
         self.table = QtWidgets.QTableWidget(len(ports_data), len(headers), self)
         self.table.setObjectName("portsTable")
@@ -310,9 +311,9 @@ class AnalogTab(QtWidgets.QWidget):
         self.table.setGraphicsEffect(shadow)
 
         # Determine tab-specific output-only fields to disable writes per-row
-        is_buck_tab = str(self.title).upper().startswith("BUCK")
-        # Column indices mapping (differs for CIMA vs others)
-        if is_cima_tab:
+        # Column indices mapping (differs when Function column is present)
+        has_function_col = is_cima_tab or is_buck_tab
+        if has_function_col:
             self._columns = {
                 "port": 0,
                 "function": 1,
@@ -336,6 +337,69 @@ class AnalogTab(QtWidgets.QWidget):
         # Simple function classifier for CIMA entries
         def _classify_function(name: str) -> str:
             mapping = {
+                # -------- BUCK mapping --------
+                # Global Buck registers
+                "BUCK_REFERENCE<1:0>": "Control",
+                "BUCK_TARGET_H<7:0>": "Config",
+                "BUCK_TARGET_L<7:0>": "Config",
+                "BUCK_CAL_SETTLING_TIME<3:0>": "Config",
+                # BUCK_TOP instance registers
+                "BUCK_CLK_1G": "Clock",
+                "BUCK_RSTB": "Control",
+                "BUCK_ASYNC_RSTB": "Control",
+                "BUCK_CLK_SEL<2:0>": "Config",
+                "BUCK_CALBUF_EN": "Control",
+                "BUCK_CAL_REFBAND_H<1:0>": "Config",
+                "BUCK_CAL_REFCODE_H<9:0>": "Config",
+                "BUCK_CAL_REFBAND_L<1:0>": "Config",
+                "BUCK_CAL_REFCODE_L<9:0>": "Config",
+                "BUCK_CONFIG_H<12:0>": "Config",
+                "BUCK_CONFIG_L<12:0>": "Config",
+                "BUCK_PORB": "Control",
+                "BUCK_CALEN": "Control",
+                "BUCK_REFBAND_H<1:0>": "Config",
+                "BUCK_REFCODE_H<9:0>": "Config",
+                "BUCK_REFBAND_L<1:0>": "Config",
+                "BUCK_REFCODE_L<9:0>": "Config",
+                "BUCK_ATP_EN": "Config",
+                "BUCK_TESTCODE_H<2>": "Config",
+                "BUCK_TESTCODE_H<1>": "Config",
+                "BUCK_TESTCODE_H<0>": "Config",
+                "BUCK_TESTCODE_L<2:0>": "Config",
+                "BUCK_EN_TP_TSCORE": "Config",
+                "BUCK_PDB_TSCORE": "Control",
+                "BUCK_RSTB_TSCORE": "Control",
+                "BUCK_BG_RTRIM<3:0>": "Config",
+                "BUCK_BIAS_CTRL<3:0>": "Config",
+                "BUCK_BIAS_PD": "Config",
+                "BUCK_ATP_MUX_CTRL<5:0>": "Control",
+                "BUCK_HADC_CONFIG<16:0>": "Config",
+                "BUCK_HADC_EN": "Control",
+                "BUCK_HADC_STROBE": "Control",
+                "BUCK_HADC_VALID": "Data",
+                "BUCK_HADC_OUT<7:0>": "Data",
+                "CALCOMP_L": "Data",
+                "CALCOMP_H": "Data",
+                # Signals / supplies for completeness
+                "BUCK_ATP": "Signal",
+                "BUCK_VOUTFB_H": "Signal",
+                "BUCK_VOUTFB_L": "Signal",
+                "BUCK_VSW_H": "Signal",
+                "BUCK_VSW_L": "Signal",
+                "BUCK_LSHRT_H": "Signal",
+                "BUCK_LSHRT_L": "Signal",
+                "PVDD": "Supply",
+                "PVSS": "Supply",
+                "DVDD": "Supply",
+                "DVSS": "Supply",
+                "AVDD": "Supply",
+                "AVDD18": "Supply",
+                "AVSS": "Supply",
+                # Scan
+                "SCAN_MODE": "Control",
+                "SCAN_EN": "Control",
+                "SCAN_IN": "Data",
+                "SCAN_OUT": "Data",
                 # Clocks
                 "CLK_ADC_1G": "Clock",
                 "CLK_MVM_1G": "Clock",
@@ -487,8 +551,7 @@ class AnalogTab(QtWidgets.QWidget):
             }
             return mapping.get(name, "Config")
 
-        # Recompute flag here for completeness (already computed above)
-        is_cima_tab = str(self.title).upper() == "CIMA"
+        # Recompute flags (already computed above)
         buck_output_only_ports = {"BUCK_HADC_VALID", "BUCK_HADC_OUT<7:0>"} if is_buck_tab else set()
         cima_output_only_ports = {"CAL_DONE", "HADC_VALID", "HADC<7:0>", "ADCX_OUT<8:0>", "ADC_VALID"} if is_cima_tab else set()
         # Note: ADCX_OUT requires special read behavior (reads 64 pairs of CWRAP_TF_REGs)
@@ -504,8 +567,8 @@ class AnalogTab(QtWidgets.QWidget):
             name_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft)
             self.table.setItem(row, self._columns["port"], name_item)
 
-            # Function column (CIMA only)
-            if is_cima_tab and self._columns["function"] is not None:
+            # Function column (CIMA and BUCK)
+            if has_function_col and self._columns["function"] is not None:
                 func_item = QtWidgets.QTableWidgetItem(_classify_function(port_name))
                 func_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(row, self._columns["function"], func_item)
@@ -589,7 +652,7 @@ class AnalogTab(QtWidgets.QWidget):
                 self.table.setCellWidget(row, self._columns["write"], container_write)
 
         header_view = self.table.horizontalHeader()
-        if is_cima_tab:
+        if has_function_col:
             header_view.setSectionResizeMode(self._columns["port"], QtWidgets.QHeaderView.ResizeMode.Stretch)
             header_view.setSectionResizeMode(self._columns["function"], QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
             header_view.setSectionResizeMode(self._columns["current"], QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
