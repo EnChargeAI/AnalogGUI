@@ -1337,6 +1337,7 @@ class BoardTab(QtWidgets.QWidget):
         layout_system   = add_section("System")
         layout_power    = add_section("Power & Rails")
         layout_cima     = add_section("CIMA / ADC")
+        layout_buck     = add_section("BUCK")
         layout_resets   = add_section("Resets & Status")
         layout_gpio     = add_section("GPIO")
         layout_clocks   = add_section("Clocks")
@@ -1359,6 +1360,10 @@ class BoardTab(QtWidgets.QWidget):
 
         self.api_container = layout_cima
         self._add_get_cima_adc_voltage_row() # 1.8
+        self.api_container.addStretch(1)
+
+        self.api_container = layout_buck
+        self._add_buck_get_voltage_row()      # 1.21 (placeholder)
         self.api_container.addStretch(1)
 
         self.api_container = layout_resets
@@ -1566,6 +1571,32 @@ class BoardTab(QtWidgets.QWidget):
     def on_get_cima_adc_voltage_clicked(self):
         sel = int(self.cima_select.value())
         self._info("Get_CIMA_ADC_Voltage", f"select={sel} (placeholder return status & values)")
+
+    # ---------- 1.21 Get_BUCK_Voltage_of_BUCK_VSW_XX (placeholder) ----------
+    def _add_buck_get_voltage_row(self):
+        row = self._add_row_shell("Get BUCK Voltage of BUCK_VSW_XX")
+        row.addWidget(QtWidgets.QLabel("XX:"))
+        self.buck_vsw_sel = QtWidgets.QComboBox()
+        self.buck_vsw_sel.addItems(["H", "L"])  # H or L
+        self.buck_vsw_sel.setToolTip("Select XX (H or L)")
+        row.addWidget(self.buck_vsw_sel)
+        hint = QtWidgets.QLabel("Placeholder — API TBD")
+        hint.setStyleSheet("color: #b9c0cc;")
+        hint.setWordWrap(True)
+        row.addWidget(hint)
+        row.addStretch(1)
+        btn = QtWidgets.QPushButton("Get_BUCK_Voltage()")
+        btn.setProperty("kind", "primary")
+        btn.clicked.connect(self.on_buck_get_voltage_clicked)
+        row.addWidget(btn)
+        self.api_container.addLayout(row)
+
+    def on_buck_get_voltage_clicked(self):
+        xx = self.buck_vsw_sel.currentText()
+        self._info(
+            "Get_BUCK_Voltage",
+            f"Get BUCK Voltage of BUCK_VSW_{xx}\n(placeholder; backend API details TBD)",
+        )
 
     # ---------- 1.9 DUT_Reset(resetMethod) ----------
     def _add_dut_reset_row(self):
