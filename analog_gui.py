@@ -2299,7 +2299,7 @@ class FunctionsTab(QtWidgets.QWidget):
 
         # 17. BUCK LineReg
         row = self._row_shell("BUCK LineReg")
-        row.addWidget(QtWidgets.QLabel("Parameter:"))
+        row.addWidget(QtWidgets.QLabel("ARG1:"))
         lr_param = self._spin(0, 2, "Parameter value (0-2)")
         row.addWidget(lr_param)
         row.addWidget(QtWidgets.QLabel("Low Voltage:"))
@@ -2319,7 +2319,7 @@ class FunctionsTab(QtWidgets.QWidget):
 
         # 18. BUCK LoadReg
         row = self._row_shell("BUCK LoadReg")
-        row.addWidget(QtWidgets.QLabel("Parameter:"))
+        row.addWidget(QtWidgets.QLabel("ARG1:"))
         ldr_param = self._spin(0, 2, "Parameter value (0-2)")
         row.addWidget(ldr_param)
         row.addWidget(QtWidgets.QLabel("Low Voltage:"))
@@ -2339,7 +2339,7 @@ class FunctionsTab(QtWidgets.QWidget):
 
         # 19. BUCK LoadStep
         row = self._row_shell("BUCK LoadStep")
-        row.addWidget(QtWidgets.QLabel("Parameter:"))
+        row.addWidget(QtWidgets.QLabel("ARG1:"))
         ls_param = self._spin(0, 2, "Parameter value (0-2)")
         row.addWidget(ls_param)
         row.addWidget(QtWidgets.QLabel("Low Voltage:"))
@@ -2359,7 +2359,7 @@ class FunctionsTab(QtWidgets.QWidget):
 
         # 20. BUCK VoltageSweep
         row = self._row_shell("BUCK VoltageSweep")
-        row.addWidget(QtWidgets.QLabel("Parameter:"))
+        row.addWidget(QtWidgets.QLabel("ARG1:"))
         vs_param = self._spin(0, 2, "Parameter value (0-2)")
         row.addWidget(vs_param)
         row.addWidget(QtWidgets.QLabel("Low Voltage:"))
