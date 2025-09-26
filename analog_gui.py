@@ -422,7 +422,7 @@ class AnalogTab(QtWidgets.QWidget):
             filter_layout.addWidget(QtWidgets.QLabel("Filter:"))
             filter_layout.addSpacing(6)
             filter_layout.addWidget(self._filter_all_checkbox)
-            for kind in ["Control", "Config", "Data", "Clock", "Signal", "Supply"]:
+            for kind in ["Control", "Config", "Data"]:
                 cb = QtWidgets.QCheckBox(kind)
                 cb.setChecked(True)
                 cb.toggled.connect(self._on_filter_type_toggled)
