@@ -268,32 +268,70 @@ class AnalogTab(QtWidgets.QWidget):
         # When All is toggled, set all individual types to the same state
         if not hasattr(self, "_function_filter_checkboxes"):
             return
+        
+        # Get current state of individual checkboxes
+        states = [cb.isChecked() for cb in self._function_filter_checkboxes.values()]
+        any_on = any(states)
+        all_on = all(states)
+        
+        # Determine the target state based on current state
+        # If currently all on or partially on, turn all off
+        # If currently all off, turn all on
+        target_state = not any_on
+        
+        # Block signals on all checkboxes to prevent recursive calls
         for cb in self._function_filter_checkboxes.values():
-            # Avoid recursive loops: block signals while setting
-            old_state = cb.blockSignals(True)
-            cb.setChecked(checked)
-            cb.blockSignals(old_state)
+            cb.blockSignals(True)
+        
+        # Set all individual checkboxes to the target state
+        for cb in self._function_filter_checkboxes.values():
+            cb.setChecked(target_state)
+        
+        # Re-enable signals on all checkboxes
+        for cb in self._function_filter_checkboxes.values():
+            cb.blockSignals(False)
+        
+        # Update the All checkbox state to reflect the new state
+        self._filter_all_checkbox.blockSignals(True)
+        if target_state:
+            self._filter_all_checkbox.setCheckState(QtCore.Qt.CheckState.Checked)
+        else:
+            self._filter_all_checkbox.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        self._filter_all_checkbox.blockSignals(False)
+        
         self._apply_function_filter()
 
     def _on_filter_type_toggled(self, _checked: bool):
         # Update All checkbox tristate behavior and apply filter
         if not hasattr(self, "_function_filter_checkboxes"):
             return
-        states = [cb.isChecked() for cb in self._function_filter_checkboxes.values()]
-        if hasattr(self, "_filter_all_checkbox"):
-            any_on = any(states)
-            all_on = all(states)
-            old_state = self._filter_all_checkbox.blockSignals(True)
-            self._filter_all_checkbox.setChecked(all_on)
-            # Use partially-checked visual if some but not all are selected
-            self._filter_all_checkbox.setTristate(True)
-            self._filter_all_checkbox.setCheckState(
-                QtCore.Qt.CheckState.PartiallyChecked if (any_on and not all_on) else (
-                    QtCore.Qt.CheckState.Checked if all_on else QtCore.Qt.CheckState.Unchecked
-                )
-            )
-            self._filter_all_checkbox.blockSignals(old_state)
+        
+        # Small delay to ensure all state changes are processed
+        QtCore.QTimer.singleShot(0, self._update_all_checkbox_state)
         self._apply_function_filter()
+    
+    def _update_all_checkbox_state(self):
+        """Update the All checkbox state based on individual checkbox states"""
+        if not hasattr(self, "_function_filter_checkboxes") or not hasattr(self, "_filter_all_checkbox"):
+            return
+        
+        states = [cb.isChecked() for cb in self._function_filter_checkboxes.values()]
+        any_on = any(states)
+        all_on = all(states)
+        
+        # Block signals to prevent recursive calls
+        self._filter_all_checkbox.blockSignals(True)
+        
+        # Set the appropriate check state
+        if all_on:
+            self._filter_all_checkbox.setCheckState(QtCore.Qt.CheckState.Checked)
+        elif any_on:
+            self._filter_all_checkbox.setCheckState(QtCore.Qt.CheckState.PartiallyChecked)
+        else:
+            self._filter_all_checkbox.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        
+        # Re-enable signals
+        self._filter_all_checkbox.blockSignals(False)
 
     def _apply_function_filter(self):
         # Hide/show rows based on selected function kinds
@@ -376,7 +414,8 @@ class AnalogTab(QtWidgets.QWidget):
         if is_cima_tab or is_buck_tab:
             self._function_filter_checkboxes = {}
             self._filter_all_checkbox = QtWidgets.QCheckBox("All")
-            self._filter_all_checkbox.setChecked(True)
+            self._filter_all_checkbox.setTristate(True)
+            self._filter_all_checkbox.setCheckState(QtCore.Qt.CheckState.Checked)
             self._filter_all_checkbox.toggled.connect(self._on_filter_all_toggled)
 
             filter_layout = QtWidgets.QHBoxLayout()
